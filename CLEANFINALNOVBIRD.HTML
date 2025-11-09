@@ -9936,6 +9936,8 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                 this.colorTheme = colorTheme; // Optional color override for themed scenarios
                 this.perchSpots = this.generatePerchSpots();
                 this.id = Math.random().toString(36).substr(2, 9);
+                // Add depth property for proper layering with trees (higher Y = further back)
+                this.depth = this.y;
             }
 
             generatePerchSpots() {
@@ -10069,9 +10071,30 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                         ctx.lineWidth = 2;
                         ctx.stroke();
 
-                        // Light glow
+                        // Light glow - enhanced at night
+                        const isNight = timeOfDay >= 1;
+
+                        if (isNight) {
+                            // Outer glow (large, soft)
+                            const glowGradient = ctx.createRadialGradient(0, -this.size * 0.65, 0, 0, -this.size * 0.65, this.size * 0.8);
+                            glowGradient.addColorStop(0, 'rgba(255, 235, 59, 0.4)');
+                            glowGradient.addColorStop(0.5, 'rgba(255, 235, 59, 0.15)');
+                            glowGradient.addColorStop(1, 'rgba(255, 235, 59, 0)');
+                            ctx.fillStyle = glowGradient;
+                            ctx.beginPath();
+                            ctx.ellipse(0, -this.size * 0.65, this.size * 0.8, this.size * 0.6, 0, 0, Math.PI * 2);
+                            ctx.fill();
+
+                            // Mid glow (medium intensity)
+                            ctx.fillStyle = 'rgba(255, 235, 59, 0.5)';
+                            ctx.beginPath();
+                            ctx.ellipse(0, -this.size * 0.65, this.size * 0.45, this.size * 0.35, 0, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+
+                        // Inner light (always visible, brighter at night)
                         ctx.fillStyle = '#FFEB3B';
-                        ctx.globalAlpha = 0.6;
+                        ctx.globalAlpha = isNight ? 0.9 : 0.6;
                         ctx.beginPath();
                         ctx.ellipse(0, -this.size * 0.65, this.size * 0.3, this.size * 0.25, 0, 0, Math.PI * 2);
                         ctx.fill();
@@ -24289,21 +24312,14 @@ if (mushroomMode) {
     // Draw ground layer (moves with camera to prevent floating effect)
     drawGround();
 
-    // Draw special scenario structures (perchable objects)
-    if (scenarioStructures.length > 0) {
-        scenarioStructures.forEach(structure => {
-            structure.draw();
-        });
-    }
-
     // Draw rainbow if visible (behind most elements)
     if (rainbowVisible) {
         drawRainbow();
     }
 
     // ===== MIDDLE GROUND LAYER =====
-    // FIXED: Combine trees and bushes for proper depth-based layering
-    // This prevents the illusion from breaking when bushes overlap trees at different depths
+    // FIXED: Combine trees, bushes, and structures for proper depth-based layering
+    // This prevents the illusion from breaking when objects overlap at different depths
 
     // Update tree degradation first
     for (let i = trees.length - 1; i >= 0; i--) {
@@ -24332,14 +24348,15 @@ if (mushroomMode) {
     // Update bushes
     bushes.forEach(bush => bush.update());
 
-    // Combine and sort vegetation by depth for proper layering
+    // Combine and sort vegetation and structures by depth for proper layering
     const vegetationItems = [
         ...trees.map(tree => ({ type: 'tree', obj: tree, depth: tree.depth })),
-        ...bushes.map(bush => ({ type: 'bush', obj: bush, depth: bush.depth }))
+        ...bushes.map(bush => ({ type: 'bush', obj: bush, depth: bush.depth })),
+        ...scenarioStructures.map(structure => ({ type: 'structure', obj: structure, depth: structure.depth }))
     ];
     vegetationItems.sort((a, b) => b.depth - a.depth);
 
-    // Draw in depth order
+    // Draw in depth order (structures now layer correctly with trees and bushes)
     vegetationItems.forEach(item => item.obj.draw());
 
     // Update and draw tall grass patches

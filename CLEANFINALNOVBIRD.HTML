@@ -2027,6 +2027,10 @@ let rainbowTimer = 0;
 let rainbowDuration = dayNightDuration; // Rainbow lasts for a full day/night cycle instead of 60000ms
 let isDoubleRainbow = false; // 1% chance for double rainbow
 
+// Special Scenario Atmosphere System
+let scenarioAtmosphere = null; // {name, skyGradient, groundColor, fogColor, structures: []}
+let scenarioStructures = []; // Perchable structures unique to each scenario
+
 // Scarecrow variables
 let scarecrow = null;
 let scarecrowCreated = false;
@@ -5653,20 +5657,29 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             // Create smooth gradient instead of solid color for more natural sky
             const skyGradient = ctx.createLinearGradient(0, -canvas.height, 0, canvas.height * GROUND_HEIGHT_RATIO);
 
-            // Top of sky (darker/more saturated)
-            skyGradient.addColorStop(0, skyColor);
+            // SPECIAL SCENARIO ATMOSPHERE: Override sky with scenario-specific colors
+            if (scenarioAtmosphere && scenarioAtmosphere.skyGradient) {
+                // Use special scenario gradient (3 colors)
+                skyGradient.addColorStop(0, scenarioAtmosphere.skyGradient[0]);
+                skyGradient.addColorStop(0.5, scenarioAtmosphere.skyGradient[1]);
+                skyGradient.addColorStop(1, scenarioAtmosphere.skyGradient[2]);
+            } else {
+                // Normal sky gradient
+                // Top of sky (darker/more saturated)
+                skyGradient.addColorStop(0, skyColor);
 
-            // Middle transition (slightly lighter)
-            const middleColor = skyColor.replace(/(\d+)%\)$/, (match, p1) => {
-                return `${Math.min(100, parseInt(p1) + 10)}%)`;
-            });
-            skyGradient.addColorStop(0.5, middleColor);
+                // Middle transition (slightly lighter)
+                const middleColor = skyColor.replace(/(\d+)%\)$/, (match, p1) => {
+                    return `${Math.min(100, parseInt(p1) + 10)}%)`;
+                });
+                skyGradient.addColorStop(0.5, middleColor);
 
-            // Bottom of sky near horizon (lighter/less saturated for atmospheric perspective)
-            const horizonColor = skyColor.replace(/(\d+)%, (\d+)%\)$/, (match, p1, p2) => {
-                return `${Math.max(0, parseInt(p1) - 15)}%, ${Math.min(100, parseInt(p2) + 15)}%)`;
-            });
-            skyGradient.addColorStop(1, horizonColor);
+                // Bottom of sky near horizon (lighter/less saturated for atmospheric perspective)
+                const horizonColor = skyColor.replace(/(\d+)%, (\d+)%\)$/, (match, p1, p2) => {
+                    return `${Math.max(0, parseInt(p1) - 15)}%, ${Math.min(100, parseInt(p2) + 15)}%)`;
+                });
+                skyGradient.addColorStop(1, horizonColor);
+            }
 
             ctx.fillStyle = skyGradient;
             // FIXED: Extend sky to cover entire canvas even when camera is zoomed/panned
@@ -9868,6 +9881,150 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
             }
         }
 
+        // Perchable Structure for Special Scenarios
+        class PerchableStructure {
+            constructor(x, y, type, size) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'stone', 'lantern', 'pillar', 'stump', 'obelisk', 'shrine'
+                this.size = size;
+                this.perchSpots = this.generatePerchSpots();
+                this.id = Math.random().toString(36).substr(2, 9);
+            }
+
+            generatePerchSpots() {
+                // Generate perch positions based on structure type
+                const spots = [];
+                switch (this.type) {
+                    case 'stone':
+                        spots.push({ x: this.x, y: this.y - this.size * 0.8, occupied: false });
+                        break;
+                    case 'lantern':
+                        spots.push({ x: this.x, y: this.y - this.size * 1.2, occupied: false });
+                        break;
+                    case 'pillar':
+                        spots.push({ x: this.x, y: this.y - this.size * 1.5, occupied: false });
+                        spots.push({ x: this.x - this.size * 0.3, y: this.y - this.size * 1.2, occupied: false });
+                        spots.push({ x: this.x + this.size * 0.3, y: this.y - this.size * 1.2, occupied: false });
+                        break;
+                    case 'stump':
+                        spots.push({ x: this.x, y: this.y - this.size * 0.5, occupied: false });
+                        break;
+                    case 'obelisk':
+                        spots.push({ x: this.x, y: this.y - this.size * 1.8, occupied: false });
+                        break;
+                    case 'shrine':
+                        spots.push({ x: this.x, y: this.y - this.size * 1.0, occupied: false });
+                        spots.push({ x: this.x - this.size * 0.5, y: this.y - this.size * 0.8, occupied: false });
+                        spots.push({ x: this.x + this.size * 0.5, y: this.y - this.size * 0.8, occupied: false });
+                        break;
+                }
+                return spots;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                switch (this.type) {
+                    case 'stone':
+                        // Round stone
+                        ctx.fillStyle = '#888888';
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, this.size, this.size * 0.6, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#666666';
+                        ctx.beginPath();
+                        ctx.ellipse(this.size * 0.3, 0, this.size * 0.3, this.size * 0.2, 0.3, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+
+                    case 'lantern':
+                        // Japanese-style lantern
+                        ctx.fillStyle = '#8B4513';
+                        ctx.fillRect(-this.size * 0.15, -this.size * 1.2, this.size * 0.3, this.size * 1.2);
+                        ctx.fillStyle = '#D2691E';
+                        ctx.fillRect(-this.size * 0.4, -this.size * 1.0, this.size * 0.8, this.size * 0.7);
+                        ctx.fillStyle = '#FFEB3B';
+                        ctx.globalAlpha = 0.6;
+                        ctx.fillRect(-this.size * 0.35, -this.size * 0.9, this.size * 0.7, this.size * 0.5);
+                        ctx.globalAlpha = 1;
+                        ctx.fillStyle = '#8B4513';
+                        ctx.fillRect(-this.size * 0.5, -this.size * 1.1, this.size, this.size * 0.15);
+                        break;
+
+                    case 'pillar':
+                        // Ancient pillar
+                        ctx.fillStyle = '#A0A0A0';
+                        ctx.fillRect(-this.size * 0.3, -this.size * 1.5, this.size * 0.6, this.size * 1.5);
+                        ctx.fillStyle = '#888888';
+                        ctx.fillRect(-this.size * 0.4, -this.size * 1.6, this.size * 0.8, this.size * 0.2);
+                        // Cracks
+                        ctx.strokeStyle = '#666666';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(this.size * 0.2, -this.size * 1.2);
+                        ctx.lineTo(this.size * 0.1, -this.size * 0.8);
+                        ctx.stroke();
+                        break;
+
+                    case 'stump':
+                        // Tree stump
+                        ctx.fillStyle = '#654321';
+                        ctx.fillRect(-this.size * 0.6, -this.size * 0.5, this.size * 1.2, this.size * 0.5);
+                        ctx.fillStyle = '#8B7355';
+                        ctx.beginPath();
+                        ctx.arc(0, -this.size * 0.5, this.size * 0.6, 0, Math.PI * 2);
+                        ctx.fill();
+                        // Tree rings
+                        ctx.strokeStyle = '#654321';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.arc(0, -this.size * 0.5, this.size * 0.3, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.arc(0, -this.size * 0.5, this.size * 0.5, 0, Math.PI * 2);
+                        ctx.stroke();
+                        break;
+
+                    case 'obelisk':
+                        // Tall obelisk
+                        ctx.fillStyle = '#2C2C2C';
+                        ctx.fillRect(-this.size * 0.2, -this.size * 1.8, this.size * 0.4, this.size * 1.8);
+                        // Tapered top
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.2, -this.size * 1.8);
+                        ctx.lineTo(0, -this.size * 2.0);
+                        ctx.lineTo(this.size * 0.2, -this.size * 1.8);
+                        ctx.closePath();
+                        ctx.fill();
+                        break;
+
+                    case 'shrine':
+                        // Small shrine
+                        ctx.fillStyle = '#8B0000';
+                        ctx.fillRect(-this.size * 0.5, -this.size * 0.7, this.size, this.size * 0.7);
+                        ctx.fillStyle = '#B22222';
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.6, -this.size * 0.7);
+                        ctx.lineTo(0, -this.size * 1.1);
+                        ctx.lineTo(this.size * 0.6, -this.size * 0.7);
+                        ctx.closePath();
+                        ctx.fill();
+                        // Torii-style top
+                        ctx.fillStyle = '#8B0000';
+                        ctx.fillRect(-this.size * 0.7, -this.size * 1.15, this.size * 1.4, this.size * 0.1);
+                        break;
+                }
+
+                ctx.restore();
+            }
+
+            getPerchPositions() {
+                return this.perchSpots;
+            }
+        }
+
         // More dynamic tree regrowth
         function regrowTrees() {
             // Allow more trees, remove unhealthy ones if above max limit
@@ -12198,7 +12355,9 @@ if (shelterChance > 0 && Math.random() < shelterChance) {
                             }
 
                             // Random chirping while idle (increased frequency)
-                            if (Math.random() < 0.006) { // ~0.6% chance per frame
+                            // Reduce by 80% if quiet mode is enabled
+                            const hoppingChirpChance = quietModeEnabled ? 0.0012 : 0.006;
+                            if (Math.random() < hoppingChirpChance) { // ~0.6% chance per frame, or 0.12% in quiet mode
                                 this.chirp(CHIRP_TYPES.SOCIAL, 0.5);
                             }
                         }
@@ -13863,7 +14022,9 @@ if (shelterChance > 0 && Math.random() < shelterChance) {
                         }
 
                         // Occasional chirping while sitting
-                        if (Math.random() < 0.01) {
+                        // Reduce by 80% if quiet mode is enabled
+                        const nestChirpChance = quietModeEnabled ? 0.002 : 0.01;
+                        if (Math.random() < nestChirpChance) { // ~1% chance per frame, or 0.2% in quiet mode
                             this.chirp(CHIRP_TYPES.SOCIAL, 0.3);
                         }
 
@@ -23797,6 +23958,13 @@ if (mushroomMode) {
     // Draw ground layer (moves with camera to prevent floating effect)
     drawGround();
 
+    // Draw special scenario structures (perchable objects)
+    if (scenarioStructures.length > 0) {
+        scenarioStructures.forEach(structure => {
+            structure.draw();
+        });
+    }
+
     // Draw rainbow if visible (behind most elements)
     if (rainbowVisible) {
         drawRainbow();
@@ -24865,6 +25033,16 @@ function drawFullScene() {
                         title: 'Zen Garden',
                         description: 'Harmony through simplicity - three trees in perfect balance'
                     };
+
+                    // Set peaceful zen atmosphere
+                    scenarioAtmosphere = {
+                        name: 'zen',
+                        skyGradient: ['#E8F4F8', '#C5E1EA', '#A8D5E2'], // Pale blue zen sky
+                        groundColor: '#D4C4B0', // Sandy beige ground
+                        fogColor: 'rgba(200, 220, 230, 0.15)', // Subtle mist
+                        particleColor: '#FFFFFF' // Floating white petals
+                    };
+
                     const spacing = canvas.width / 4;
                     for (let i = 0; i < 3; i++) {
                         const x = spacing + (i * spacing);
@@ -24872,6 +25050,19 @@ function drawFullScene() {
                         tree.age = TREE_LIFESPAN * (0.3 + Math.random() * 0.3);
                         trees.push(tree);
                     }
+
+                    // Add zen stones and lanterns
+                    const stoneCount = 5 + Math.floor(Math.random() * 3);
+                    for (let i = 0; i < stoneCount; i++) {
+                        const x = 100 + Math.random() * (canvas.width - 200);
+                        const stone = new PerchableStructure(x, canvas.height - 80, 'stone', 30 + Math.random() * 20);
+                        scenarioStructures.push(stone);
+                    }
+
+                    // Add two lanterns flanking the center
+                    const centerX = canvas.width / 2;
+                    scenarioStructures.push(new PerchableStructure(centerX - 150, canvas.height - 100, 'lantern', 40));
+                    scenarioStructures.push(new PerchableStructure(centerX + 150, canvas.height - 100, 'lantern', 40));
 
                 } else if (scenarioType < 0.571) {
                     // "Enchanted Path" - Trees forming a natural avenue
@@ -25006,6 +25197,16 @@ function drawFullScene() {
                         title: 'Ancient Ruins',
                         description: 'Pillars of an forgotten temple stand among new growth'
                     };
+
+                    // Set ancient mystical atmosphere
+                    scenarioAtmosphere = {
+                        name: 'ruins',
+                        skyGradient: ['#C9B8A8', '#A89688', '#8B7A6A'], // Dusty ancient sky
+                        groundColor: '#A1907A', // Weathered stone ground
+                        fogColor: 'rgba(139, 122, 106, 0.2)', // Ancient dust
+                        particleColor: '#D4C4B0' // Floating dust motes
+                    };
+
                     // Four corner pillars
                     const margin = canvas.width * 0.15;
                     const corners = [
@@ -25028,6 +25229,18 @@ function drawFullScene() {
                         const tree = new Tree(x, 8 + Math.random() * 5, 50 + Math.random() * 40, 25 + Math.random() * 15, Math.random() < 0.4);
                         tree.age = Math.random() * (TREE_LIFESPAN * 0.15);
                         trees.push(tree);
+                    }
+
+                    // Add ancient stone pillars and obelisks
+                    const centerX = canvas.width / 2;
+                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 120, 'obelisk', 50));
+                    scenarioStructures.push(new PerchableStructure(centerX - 100, canvas.height - 100, 'pillar', 45));
+                    scenarioStructures.push(new PerchableStructure(centerX + 100, canvas.height - 100, 'pillar', 45));
+
+                    // Add scattered ruined stones
+                    for (let i = 0; i < 6; i++) {
+                        const x = 100 + Math.random() * (canvas.width - 200);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', 25 + Math.random() * 15));
                     }
                 }
 

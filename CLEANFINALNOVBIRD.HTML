@@ -25301,6 +25301,15 @@ function drawFullScene() {
             sharedFoodKnowledge = [];
             activeChirps = [];
 
+            // Clear wind chimes and related timeouts when changing scenarios
+            windChimes = [];
+            if (windChimeTimeout) {
+                clearTimeout(windChimeTimeout);
+                windChimeTimeout = null;
+            }
+            windChimeNoteTimeouts.forEach(timeout => clearTimeout(timeout));
+            windChimeNoteTimeouts = [];
+
             // Clear scenario-specific elements
             scenarioAtmosphere = null;
             scenarioStructures = [];

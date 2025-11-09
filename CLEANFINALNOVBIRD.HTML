@@ -10662,6 +10662,22 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                     });
                 });
 
+                // Add special scenario structure perching positions (stones, lanterns, pillars, etc.)
+                scenarioStructures.forEach(structure => {
+                    const positions = structure.getPerchPositions();
+                    positions.forEach(spot => {
+                        allPerchPositions.push({
+                            x: spot.x,
+                            y: spot.y,
+                            inLeaves: false,
+                            tree: null,
+                            bush: null,
+                            structure: structure, // Reference to the structure
+                            isStructure: true
+                        });
+                    });
+                });
+
                 // Add birdhouse construction platform perches (T-beam perches!)
                 birdhouses.forEach(bh => {
                     if (!bh.isComplete && bh.constructionPerches) {
@@ -24923,6 +24939,10 @@ function drawFullScene() {
         function startAnimation() {
             if (animationRunning) return;
 
+            // Clear previous scenario atmosphere and structures
+            scenarioAtmosphere = null;
+            scenarioStructures = [];
+
             // NEW: 5% chance for special initial garden scenarios (14 unique scenarios!)
             const specialScenarioRoll = Math.random();
             let useSpecialScenario = false;
@@ -25018,12 +25038,35 @@ function drawFullScene() {
                         title: 'Wild Wilderness',
                         description: 'Untamed nature has already claimed this space'
                     };
+
+                    // Set dense forest atmosphere
+                    scenarioAtmosphere = {
+                        name: 'wilderness',
+                        skyGradient: ['#7FA87F', '#6B8E6B', '#577457'], // Deep forest green sky
+                        groundColor: '#4A6B3A', // Rich moss green ground
+                        fogColor: 'rgba(75, 105, 60, 0.25)', // Forest mist
+                        particleColor: '#90C090' // Green spores/pollen
+                    };
+
                     const treeCount = 15 + Math.floor(Math.random() * 5);
                     for (let i = 0; i < treeCount; i++) {
                         const x = 80 + Math.random() * (canvas.width - 160);
                         const tree = new Tree(x, 12 + Math.random() * 12, 80 + Math.random() * 100, 35 + Math.random() * 25, Math.random() < 0.7);
                         tree.age = Math.random() * (TREE_LIFESPAN * 0.6);
                         trees.push(tree);
+                    }
+
+                    // Add wild forest stumps scattered throughout
+                    const stumpCount = 8 + Math.floor(Math.random() * 4);
+                    for (let i = 0; i < stumpCount; i++) {
+                        const x = 100 + Math.random() * (canvas.width - 200);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 70, 'stump', 35 + Math.random() * 25));
+                    }
+
+                    // Add a few large stones
+                    for (let i = 0; i < 4; i++) {
+                        const x = 120 + Math.random() * (canvas.width - 240);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 90, 'stone', 40 + Math.random() * 20));
                     }
 
                 } else if (scenarioType < 0.5) {
@@ -25071,6 +25114,16 @@ function drawFullScene() {
                         title: 'Enchanted Path',
                         description: 'Trees line both sides of an invisible pathway'
                     };
+
+                    // Set magical mystical atmosphere
+                    scenarioAtmosphere = {
+                        name: 'enchanted',
+                        skyGradient: ['#D4B5E8', '#B89FD1', '#9C89BA'], // Magical purple sky
+                        groundColor: '#8B7BA8', // Mystical purple-gray ground
+                        fogColor: 'rgba(180, 159, 209, 0.2)', // Ethereal purple mist
+                        particleColor: '#E8D4F8' // Floating magical sparkles
+                    };
+
                     const treeCount = 8 + Math.floor(Math.random() * 4);
                     for (let i = 0; i < treeCount; i++) {
                         const side = i % 2;
@@ -25081,6 +25134,18 @@ function drawFullScene() {
                         trees.push(tree);
                     }
 
+                    // Add lanterns lining the path (alternating sides)
+                    for (let i = 0; i < 6; i++) {
+                        const side = i % 2;
+                        const xBase = side === 0 ? canvas.width * 0.3 : canvas.width * 0.7;
+                        const x = xBase + (i % 2 === 0 ? -40 : 40);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 95, 'lantern', 35));
+                    }
+
+                    // Add mystical shrines at path ends
+                    scenarioStructures.push(new PerchableStructure(canvas.width * 0.2, canvas.height - 110, 'shrine', 45));
+                    scenarioStructures.push(new PerchableStructure(canvas.width * 0.8, canvas.height - 110, 'shrine', 45));
+
                 } else if (scenarioType < 0.643) {
                     // "Cluster Chaos" - Three distinct tree clusters
                     scenarioInfo = {
@@ -25088,6 +25153,16 @@ function drawFullScene() {
                         title: 'Cluster Chaos',
                         description: 'Three groves compete for dominance of the garden'
                     };
+
+                    // Set vibrant competitive atmosphere
+                    scenarioAtmosphere = {
+                        name: 'chaos',
+                        skyGradient: ['#F4E8C1', '#D9C89E', '#BEA87B'], // Golden competitive sky
+                        groundColor: '#9B8B5F', // Earthy brown ground
+                        fogColor: 'rgba(217, 200, 158, 0.15)', // Light golden haze
+                        particleColor: '#FFE5A0' // Golden leaves floating
+                    };
+
                     for (let cluster = 0; cluster < 3; cluster++) {
                         const clusterX = (canvas.width / 4) + (cluster * canvas.width / 3);
                         const clusterTrees = 4 + Math.floor(Math.random() * 3);
@@ -25099,6 +25174,18 @@ function drawFullScene() {
                         }
                     }
 
+                    // Add stumps in the contested spaces between clusters
+                    for (let i = 0; i < 6; i++) {
+                        const betweenX = (canvas.width / 6) + (i * canvas.width / 6);
+                        scenarioStructures.push(new PerchableStructure(betweenX, canvas.height - 75, 'stump', 30 + Math.random() * 15));
+                    }
+
+                    // Add stones marking each grove's territory
+                    for (let cluster = 0; cluster < 3; cluster++) {
+                        const clusterX = (canvas.width / 4) + (cluster * canvas.width / 3);
+                        scenarioStructures.push(new PerchableStructure(clusterX, canvas.height - 85, 'stone', 35 + Math.random() * 15));
+                    }
+
                 } else if (scenarioType < 0.714) {
                     // "Mountain Peaks" - Trees progressively taller toward center
                     scenarioInfo = {
@@ -25106,6 +25193,16 @@ function drawFullScene() {
                         title: 'Mountain Peaks',
                         description: 'Trees rise like mountain peaks, tallest at the summit'
                     };
+
+                    // Set alpine mountain atmosphere
+                    scenarioAtmosphere = {
+                        name: 'mountain',
+                        skyGradient: ['#C8D8E8', '#A8BED8', '#88A4C8'], // Cool mountain sky
+                        groundColor: '#758AA0', // Rocky gray-blue ground
+                        fogColor: 'rgba(168, 190, 216, 0.18)', // Mountain mist
+                        particleColor: '#FFFFFF' // Snow/mist particles
+                    };
+
                     const treeCount = 7 + Math.floor(Math.random() * 4);
                     const centerX = canvas.width / 2;
                     for (let i = 0; i < treeCount; i++) {
@@ -25123,6 +25220,17 @@ function drawFullScene() {
                         if (heightMultiplier > 0.8) tallTreeCount++;
                     }
 
+                    // Add stones along the ascending path to the peak
+                    for (let i = 0; i < 9; i++) {
+                        const x = 100 + (i * (canvas.width - 200) / 8);
+                        const distFromCenter = Math.abs(x - centerX) / (canvas.width / 2);
+                        const size = 25 + ((1 - distFromCenter) * 30); // Larger stones near peak
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', size));
+                    }
+
+                    // Add obelisk at the peak
+                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 125, 'obelisk', 55));
+
                 } else if (scenarioType < 0.786) {
                     // "Mirror Grove" - Perfect left-right symmetry
                     scenarioInfo = {
@@ -25130,6 +25238,16 @@ function drawFullScene() {
                         title: 'Mirror Grove',
                         description: 'Nature creates a perfect reflection across the garden'
                     };
+
+                    // Set crystalline mirror atmosphere
+                    scenarioAtmosphere = {
+                        name: 'mirror',
+                        skyGradient: ['#E0E8F0', '#D0D8E8', '#C0C8D8'], // Reflective silver sky
+                        groundColor: '#B0B8C8', // Shimmering silver ground
+                        fogColor: 'rgba(208, 216, 232, 0.12)', // Crystalline shimmer
+                        particleColor: '#F0F8FF' // Sparkling reflections
+                    };
+
                     const pairsCount = 3 + Math.floor(Math.random() * 2); // 3-4 pairs
                     const centerX = canvas.width / 2;
                     for (let i = 0; i < pairsCount; i++) {
@@ -25153,6 +25271,16 @@ function drawFullScene() {
                         if (isTall) tallTreeCount++;
                     }
 
+                    // Add perfectly mirrored lanterns
+                    for (let i = 0; i < 4; i++) {
+                        const offset = 120 + (i * 100);
+                        scenarioStructures.push(new PerchableStructure(centerX - offset, canvas.height - 100, 'lantern', 38));
+                        scenarioStructures.push(new PerchableStructure(centerX + offset, canvas.height - 100, 'lantern', 38));
+                    }
+
+                    // Add central shrine on the mirror line
+                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 115, 'shrine', 50));
+
                 } else if (scenarioType < 0.857) {
                     // "Desert Oasis" - Small cluster in center, vast emptiness
                     scenarioInfo = {
@@ -25160,6 +25288,16 @@ function drawFullScene() {
                         title: 'Desert Oasis',
                         description: 'A precious cluster of life in an endless expanse'
                     };
+
+                    // Set hot desert atmosphere
+                    scenarioAtmosphere = {
+                        name: 'desert',
+                        skyGradient: ['#F5DEB3', '#E8C89A', '#DBB281'], // Warm sandy sky
+                        groundColor: '#D2A679', // Hot sand ground
+                        fogColor: 'rgba(232, 200, 154, 0.25)', // Heat shimmer
+                        particleColor: '#FFE4B5' // Sand particles
+                    };
+
                     const treeCount = 2 + Math.floor(Math.random() * 2); // 2-3 trees only
                     const centerX = canvas.width / 2;
                     for (let i = 0; i < treeCount; i++) {
@@ -25172,6 +25310,17 @@ function drawFullScene() {
                         tallTreeCount++;
                     }
 
+                    // Add stones in a ring around the oasis
+                    for (let i = 0; i < 8; i++) {
+                        const angle = (i / 8) * Math.PI * 2;
+                        const radius = 120 + Math.random() * 40;
+                        const x = centerX + Math.cos(angle) * radius;
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 85, 'stone', 30 + Math.random() * 25));
+                    }
+
+                    // Add shrine at the heart of the oasis
+                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 110, 'shrine', 42));
+
                 } else if (scenarioType < 0.929) {
                     // "Storm Survivors" - Trees all leaning in same direction
                     scenarioInfo = {
@@ -25179,6 +25328,16 @@ function drawFullScene() {
                         title: 'Storm Survivors',
                         description: 'Windswept trees bent by the relentless gale'
                     };
+
+                    // Set stormy windswept atmosphere
+                    scenarioAtmosphere = {
+                        name: 'storm',
+                        skyGradient: ['#9CA8B8', '#8698A8', '#708898'], // Stormy gray sky
+                        groundColor: '#6B7B8B', // Dark stormy ground
+                        fogColor: 'rgba(134, 152, 168, 0.3)', // Heavy storm clouds
+                        particleColor: '#B8C8D8' // Wind-blown debris
+                    };
+
                     const treeCount = 6 + Math.floor(Math.random() * 4);
                     const windDirection = Math.random() < 0.5 ? -1 : 1; // Left or right
                     for (let i = 0; i < treeCount; i++) {
@@ -25188,6 +25347,18 @@ function drawFullScene() {
                         // Store wind direction for rendering (this would need custom render support)
                         tree.windLean = windDirection;
                         trees.push(tree);
+                    }
+
+                    // Add weathered stumps - remnants of fallen trees
+                    for (let i = 0; i < 10; i++) {
+                        const x = 90 + Math.random() * (canvas.width - 180);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 70, 'stump', 25 + Math.random() * 20));
+                    }
+
+                    // Add scattered stones blown by the wind
+                    for (let i = 0; i < 5; i++) {
+                        const x = 100 + Math.random() * (canvas.width - 200);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', 28 + Math.random() * 18));
                     }
 
                 } else {

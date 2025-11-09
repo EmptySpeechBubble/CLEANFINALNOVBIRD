@@ -5813,7 +5813,14 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
         function drawGround() {
             // Calculate ground position in world coordinates
             const groundY = canvas.height * GROUND_HEIGHT_RATIO;
-            const groundColor = isRaining ? '#7AC552' : (puddles.length > 0 ? '#88DD77' : '#90EE90');
+
+            // Check for scenario-specific ground color first
+            let groundColor;
+            if (scenarioAtmosphere && scenarioAtmosphere.groundColor) {
+                groundColor = scenarioAtmosphere.groundColor;
+            } else {
+                groundColor = isRaining ? '#7AC552' : (puddles.length > 0 ? '#88DD77' : '#90EE90');
+            }
 
             // Calculate the visible world bounds accounting for camera zoom and offset
             // We need to draw ground that covers the entire visible canvas after transformation
@@ -25040,6 +25047,7 @@ function drawFullScene() {
                         0.964   // 13: Ancient Ruins (0.929-1.0 range) - ENHANCED
                     ];
                     scenarioType = scenarioRanges[window.forceScenarioIndex];
+                    console.log(`[DEBUG CYCLER] Forcing scenario index ${window.forceScenarioIndex} -> scenarioType ${scenarioType}`);
                     delete window.forceScenarioIndex; // Clear the flag
                 } else {
                     scenarioType = Math.random();
@@ -25132,6 +25140,7 @@ function drawFullScene() {
                         description: 'Untamed nature has already claimed this space'
                     };
 
+                    console.log("[DEBUG CYCLER] Entering Wild Wilderness scenario");
                     // Set dense forest atmosphere
                     scenarioAtmosphere = {
                         name: 'wilderness',
@@ -25140,6 +25149,7 @@ function drawFullScene() {
                         fogColor: 'rgba(75, 105, 60, 0.25)', // Forest mist
                         particleColor: '#90C090' // Green spores/pollen
                     };
+                    console.log("[DEBUG CYCLER] scenarioAtmosphere set:", scenarioAtmosphere);
 
                     const treeCount = 15 + Math.floor(Math.random() * 5);
                     for (let i = 0; i < treeCount; i++) {
@@ -25161,6 +25171,7 @@ function drawFullScene() {
                         const x = 120 + Math.random() * (canvas.width - 240);
                         scenarioStructures.push(new PerchableStructure(x, canvas.height - 90, 'stone', 40 + Math.random() * 20));
                     }
+                    console.log("[DEBUG CYCLER] scenarioStructures populated with", scenarioStructures.length, "structures");
 
                 } else if (scenarioType < 0.5) {
                     // "Zen Garden" - Minimalist, few perfect trees

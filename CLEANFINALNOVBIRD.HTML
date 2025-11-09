@@ -9934,94 +9934,351 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                 ctx.save();
                 ctx.translate(this.x, this.y);
 
+                // Helper functions for shading (matching bush style)
+                const darkenColor = (color, amount) => {
+                    const hex = color.replace('#', '');
+                    const r = Math.max(0, parseInt(hex.substr(0, 2), 16) - amount);
+                    const g = Math.max(0, parseInt(hex.substr(2, 2), 16) - amount);
+                    const b = Math.max(0, parseInt(hex.substr(4, 2), 16) - amount);
+                    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+                };
+
+                const lightenColor = (color, amount) => {
+                    const hex = color.replace('#', '');
+                    const r = Math.min(255, parseInt(hex.substr(0, 2), 16) + amount);
+                    const g = Math.min(255, parseInt(hex.substr(2, 2), 16) + amount);
+                    const b = Math.min(255, parseInt(hex.substr(4, 2), 16) + amount);
+                    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+                };
+
                 switch (this.type) {
                     case 'stone':
-                        // Round stone
-                        ctx.fillStyle = '#888888';
+                        // Rounded stone with perspective and depth
+                        const stoneColor = '#888888';
+                        const stoneDark = darkenColor(stoneColor, 50);
+                        const stoneLight = lightenColor(stoneColor, 40);
+
+                        // Shadow
+                        ctx.fillStyle = stoneDark;
                         ctx.beginPath();
-                        ctx.ellipse(0, 0, this.size, this.size * 0.6, 0, 0, Math.PI * 2);
+                        ctx.ellipse(2, 2, this.size, this.size * 0.5, 0, 0, Math.PI * 2);
                         ctx.fill();
-                        ctx.fillStyle = '#666666';
+
+                        // Main stone body
+                        ctx.fillStyle = stoneColor;
                         ctx.beginPath();
-                        ctx.ellipse(this.size * 0.3, 0, this.size * 0.3, this.size * 0.2, 0.3, 0, Math.PI * 2);
+                        ctx.ellipse(0, 0, this.size, this.size * 0.5, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Outline
+                        ctx.strokeStyle = stoneDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Highlight
+                        ctx.fillStyle = stoneLight;
+                        ctx.beginPath();
+                        ctx.ellipse(-this.size * 0.2, -this.size * 0.15, this.size * 0.3, this.size * 0.15, 0, 0, Math.PI * 2);
                         ctx.fill();
                         break;
 
                     case 'lantern':
-                        // Japanese-style lantern
-                        ctx.fillStyle = '#8B4513';
+                        // Japanese-style lantern with depth
+                        const poleColor = '#8B4513';
+                        const poleDark = darkenColor(poleColor, 40);
+                        const bodyColor = '#D2691E';
+                        const bodyDark = darkenColor(bodyColor, 40);
+                        const bodyLight = lightenColor(bodyColor, 30);
+
+                        // Post shadow
+                        ctx.fillStyle = poleDark;
+                        ctx.fillRect(-this.size * 0.15 + 2, -this.size * 1.2, this.size * 0.3, this.size * 1.2);
+
+                        // Post
+                        ctx.fillStyle = poleColor;
                         ctx.fillRect(-this.size * 0.15, -this.size * 1.2, this.size * 0.3, this.size * 1.2);
-                        ctx.fillStyle = '#D2691E';
-                        ctx.fillRect(-this.size * 0.4, -this.size * 1.0, this.size * 0.8, this.size * 0.7);
+
+                        // Top cap shadow
+                        ctx.fillStyle = poleDark;
+                        ctx.fillRect(-this.size * 0.5 + 1, -this.size * 1.1 + 1, this.size, this.size * 0.15);
+
+                        // Lantern body shadow
+                        ctx.fillStyle = bodyDark;
+                        ctx.beginPath();
+                        ctx.ellipse(2, -this.size * 0.65 + 2, this.size * 0.45, this.size * 0.35, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Lantern body
+                        ctx.fillStyle = bodyColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 0.65, this.size * 0.45, this.size * 0.35, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Outline
+                        ctx.strokeStyle = bodyDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Light glow
                         ctx.fillStyle = '#FFEB3B';
                         ctx.globalAlpha = 0.6;
-                        ctx.fillRect(-this.size * 0.35, -this.size * 0.9, this.size * 0.7, this.size * 0.5);
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 0.65, this.size * 0.3, this.size * 0.25, 0, 0, Math.PI * 2);
+                        ctx.fill();
                         ctx.globalAlpha = 1;
-                        ctx.fillStyle = '#8B4513';
+
+                        // Top cap
+                        ctx.fillStyle = poleColor;
                         ctx.fillRect(-this.size * 0.5, -this.size * 1.1, this.size, this.size * 0.15);
+
+                        // Highlight on body
+                        ctx.fillStyle = bodyLight;
+                        ctx.beginPath();
+                        ctx.ellipse(-this.size * 0.15, -this.size * 0.75, this.size * 0.15, this.size * 0.1, 0, 0, Math.PI * 2);
+                        ctx.fill();
                         break;
 
                     case 'pillar':
-                        // Ancient pillar
-                        ctx.fillStyle = '#A0A0A0';
-                        ctx.fillRect(-this.size * 0.3, -this.size * 1.5, this.size * 0.6, this.size * 1.5);
-                        ctx.fillStyle = '#888888';
-                        ctx.fillRect(-this.size * 0.4, -this.size * 1.6, this.size * 0.8, this.size * 0.2);
-                        // Cracks
-                        ctx.strokeStyle = '#666666';
-                        ctx.lineWidth = 2;
+                        // Ancient pillar with perspective
+                        const pillarColor = '#A0A0A0';
+                        const pillarDark = darkenColor(pillarColor, 50);
+                        const pillarLight = lightenColor(pillarColor, 30);
+
+                        // Base shadow
+                        ctx.fillStyle = pillarDark;
                         ctx.beginPath();
-                        ctx.moveTo(this.size * 0.2, -this.size * 1.2);
-                        ctx.lineTo(this.size * 0.1, -this.size * 0.8);
+                        ctx.ellipse(2, 2, this.size * 0.5, this.size * 0.25, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Base
+                        ctx.fillStyle = pillarColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, this.size * 0.5, this.size * 0.25, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = pillarDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Column shaft (tapered for perspective)
+                        ctx.fillStyle = pillarColor;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.35, 0);
+                        ctx.lineTo(-this.size * 0.25, -this.size * 1.5);
+                        ctx.lineTo(this.size * 0.25, -this.size * 1.5);
+                        ctx.lineTo(this.size * 0.35, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.strokeStyle = pillarDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Left side darkening
+                        ctx.fillStyle = pillarDark;
+                        ctx.globalAlpha = 0.3;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.35, 0);
+                        ctx.lineTo(-this.size * 0.25, -this.size * 1.5);
+                        ctx.lineTo(0, -this.size * 1.5);
+                        ctx.lineTo(0, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+
+                        // Capital (top)
+                        ctx.fillStyle = pillarColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 1.5, this.size * 0.4, this.size * 0.2, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = pillarDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Cracks
+                        ctx.strokeStyle = pillarDark;
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.moveTo(this.size * 0.15, -this.size * 1.2);
+                        ctx.lineTo(this.size * 0.05, -this.size * 0.6);
                         ctx.stroke();
                         break;
 
                     case 'stump':
-                        // Tree stump
-                        ctx.fillStyle = '#654321';
-                        ctx.fillRect(-this.size * 0.6, -this.size * 0.5, this.size * 1.2, this.size * 0.5);
-                        ctx.fillStyle = '#8B7355';
+                        // Tree stump with perspective
+                        const stumpColor = '#8B7355';
+                        const stumpDark = darkenColor(stumpColor, 50);
+                        const stumpLight = lightenColor(stumpColor, 30);
+                        const barkColor = '#654321';
+
+                        // Base shadow (ellipse for perspective)
+                        ctx.fillStyle = stumpDark;
                         ctx.beginPath();
-                        ctx.arc(0, -this.size * 0.5, this.size * 0.6, 0, Math.PI * 2);
+                        ctx.ellipse(2, 2, this.size * 0.7, this.size * 0.35, 0, 0, Math.PI * 2);
                         ctx.fill();
+
+                        // Side bark
+                        ctx.fillStyle = barkColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 0.25, this.size * 0.7, this.size * 0.25, 0, Math.PI, Math.PI * 2);
+                        ctx.closePath();
+                        ctx.fill();
+
+                        // Bark outline
+                        ctx.strokeStyle = darkenColor(barkColor, 30);
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Top surface
+                        ctx.fillStyle = stumpColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 0.5, this.size * 0.7, this.size * 0.35, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Top outline
+                        ctx.strokeStyle = stumpDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
                         // Tree rings
-                        ctx.strokeStyle = '#654321';
-                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = stumpDark;
+                        ctx.lineWidth = 1.5;
                         ctx.beginPath();
-                        ctx.arc(0, -this.size * 0.5, this.size * 0.3, 0, Math.PI * 2);
+                        ctx.ellipse(0, -this.size * 0.5, this.size * 0.3, this.size * 0.15, 0, 0, Math.PI * 2);
                         ctx.stroke();
                         ctx.beginPath();
-                        ctx.arc(0, -this.size * 0.5, this.size * 0.5, 0, Math.PI * 2);
+                        ctx.ellipse(0, -this.size * 0.5, this.size * 0.5, this.size * 0.25, 0, 0, Math.PI * 2);
                         ctx.stroke();
+
+                        // Highlight
+                        ctx.fillStyle = stumpLight;
+                        ctx.beginPath();
+                        ctx.ellipse(-this.size * 0.3, -this.size * 0.55, this.size * 0.2, this.size * 0.1, 0, 0, Math.PI * 2);
+                        ctx.fill();
                         break;
 
                     case 'obelisk':
-                        // Tall obelisk
-                        ctx.fillStyle = '#2C2C2C';
-                        ctx.fillRect(-this.size * 0.2, -this.size * 1.8, this.size * 0.4, this.size * 1.8);
-                        // Tapered top
+                        // Tall obelisk with perspective
+                        const obeliskColor = '#2C2C2C';
+                        const obeliskDark = darkenColor(obeliskColor, 30);
+                        const obeliskLight = lightenColor(obeliskColor, 50);
+
+                        // Base shadow
+                        ctx.fillStyle = obeliskDark;
                         ctx.beginPath();
-                        ctx.moveTo(-this.size * 0.2, -this.size * 1.8);
-                        ctx.lineTo(0, -this.size * 2.0);
-                        ctx.lineTo(this.size * 0.2, -this.size * 1.8);
+                        ctx.ellipse(2, 2, this.size * 0.3, this.size * 0.15, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Base
+                        ctx.fillStyle = obeliskColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, this.size * 0.3, this.size * 0.15, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = obeliskDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Main shaft (slightly tapered)
+                        ctx.fillStyle = obeliskColor;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.25, 0);
+                        ctx.lineTo(-this.size * 0.15, -this.size * 1.8);
+                        ctx.lineTo(this.size * 0.15, -this.size * 1.8);
+                        ctx.lineTo(this.size * 0.25, 0);
                         ctx.closePath();
                         ctx.fill();
+                        ctx.strokeStyle = obeliskDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Left side shading
+                        ctx.fillStyle = obeliskDark;
+                        ctx.globalAlpha = 0.4;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.25, 0);
+                        ctx.lineTo(-this.size * 0.15, -this.size * 1.8);
+                        ctx.lineTo(0, -this.size * 1.8);
+                        ctx.lineTo(0, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+
+                        // Pyramidal top
+                        ctx.fillStyle = obeliskColor;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.15, -this.size * 1.8);
+                        ctx.lineTo(0, -this.size * 2.0);
+                        ctx.lineTo(this.size * 0.15, -this.size * 1.8);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.strokeStyle = obeliskDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Right highlight
+                        ctx.fillStyle = obeliskLight;
+                        ctx.globalAlpha = 0.3;
+                        ctx.beginPath();
+                        ctx.moveTo(0, 0);
+                        ctx.lineTo(0, -this.size * 1.8);
+                        ctx.lineTo(this.size * 0.15, -this.size * 1.8);
+                        ctx.lineTo(this.size * 0.25, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
                         break;
 
                     case 'shrine':
-                        // Small shrine
-                        ctx.fillStyle = '#8B0000';
+                        // Small shrine with perspective
+                        const shrineColor = '#8B0000';
+                        const shrineDark = darkenColor(shrineColor, 40);
+                        const shrineLight = lightenColor(shrineColor, 30);
+                        const roofColor = '#B22222';
+
+                        // Base/floor shadow
+                        ctx.fillStyle = shrineDark;
+                        ctx.beginPath();
+                        ctx.ellipse(2, 2, this.size * 0.6, this.size * 0.3, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Base/floor
+                        ctx.fillStyle = shrineColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, this.size * 0.6, this.size * 0.3, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = shrineDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Main building body
+                        ctx.fillStyle = shrineColor;
                         ctx.fillRect(-this.size * 0.5, -this.size * 0.7, this.size, this.size * 0.7);
-                        ctx.fillStyle = '#B22222';
+                        ctx.strokeStyle = shrineDark;
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(-this.size * 0.5, -this.size * 0.7, this.size, this.size * 0.7);
+
+                        // Left side shading
+                        ctx.fillStyle = shrineDark;
+                        ctx.globalAlpha = 0.3;
+                        ctx.fillRect(-this.size * 0.5, -this.size * 0.7, this.size * 0.5, this.size * 0.7);
+                        ctx.globalAlpha = 1;
+
+                        // Roof
+                        ctx.fillStyle = roofColor;
                         ctx.beginPath();
                         ctx.moveTo(-this.size * 0.6, -this.size * 0.7);
                         ctx.lineTo(0, -this.size * 1.1);
                         ctx.lineTo(this.size * 0.6, -this.size * 0.7);
                         ctx.closePath();
                         ctx.fill();
-                        // Torii-style top
-                        ctx.fillStyle = '#8B0000';
+                        ctx.strokeStyle = darkenColor(roofColor, 40);
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Torii-style top beam
+                        ctx.fillStyle = shrineColor;
                         ctx.fillRect(-this.size * 0.7, -this.size * 1.15, this.size * 1.4, this.size * 0.1);
+                        ctx.strokeStyle = shrineDark;
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(-this.size * 0.7, -this.size * 1.15, this.size * 1.4, this.size * 0.1);
                         break;
                 }
 
@@ -25047,7 +25304,6 @@ function drawFullScene() {
                         0.964   // 13: Ancient Ruins (0.929-1.0 range) - ENHANCED
                     ];
                     scenarioType = scenarioRanges[window.forceScenarioIndex];
-                    console.log(`[DEBUG CYCLER] Forcing scenario index ${window.forceScenarioIndex} -> scenarioType ${scenarioType}`);
                     delete window.forceScenarioIndex; // Clear the flag
                 } else {
                     scenarioType = Math.random();
@@ -25140,7 +25396,6 @@ function drawFullScene() {
                         description: 'Untamed nature has already claimed this space'
                     };
 
-                    console.log("[DEBUG CYCLER] Entering Wild Wilderness scenario");
                     // Set dense forest atmosphere
                     scenarioAtmosphere = {
                         name: 'wilderness',
@@ -25149,7 +25404,6 @@ function drawFullScene() {
                         fogColor: 'rgba(75, 105, 60, 0.25)', // Forest mist
                         particleColor: '#90C090' // Green spores/pollen
                     };
-                    console.log("[DEBUG CYCLER] scenarioAtmosphere set:", scenarioAtmosphere);
 
                     const treeCount = 15 + Math.floor(Math.random() * 5);
                     for (let i = 0; i < treeCount; i++) {
@@ -25171,7 +25425,6 @@ function drawFullScene() {
                         const x = 120 + Math.random() * (canvas.width - 240);
                         scenarioStructures.push(new PerchableStructure(x, canvas.height - 90, 'stone', 40 + Math.random() * 20));
                     }
-                    console.log("[DEBUG CYCLER] scenarioStructures populated with", scenarioStructures.length, "structures");
 
                 } else if (scenarioType < 0.5) {
                     // "Zen Garden" - Minimalist, few perfect trees

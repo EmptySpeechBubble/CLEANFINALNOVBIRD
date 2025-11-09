@@ -4125,7 +4125,13 @@ function createFlower(x, y) {
             window.nextRainWillThunder = Math.random() < LIGHTNING_CHANCE;
 
             const rainTimer = setTimeout(() => {
-                if (Math.random() < RAIN_PROBABILITY) {
+                // Desert scenarios don't get natural rain
+                const isDesert = scenarioAtmosphere && scenarioAtmosphere.name === 'desert';
+                // Storm scenarios get more frequent rain
+                const isStorm = scenarioAtmosphere && scenarioAtmosphere.name === 'storm';
+                const rainChance = isStorm ? RAIN_PROBABILITY * 2 : RAIN_PROBABILITY;
+
+                if (Math.random() < rainChance && !isDesert) {
                     // Add cloud buildup before rain starts
                     cloudCover = 0;
                     const cloudBuildupDuration = 15000; // 15 seconds
@@ -24823,6 +24829,17 @@ for (let i = owls.length - 1; i >= 0; i--) {
     // Update advanced debug if enabled
     updateAdvancedDebug(deltaTime);
 
+    // Draw scenario fog/atmosphere overlay (after all game elements)
+    if (scenarioAtmosphere && scenarioAtmosphere.fogColor) {
+        ctx.fillStyle = scenarioAtmosphere.fogColor;
+        // Fill entire visible world area with fog
+        const worldVisibleWidth = canvas.width / cameraZoom;
+        const worldVisibleHeight = canvas.height / cameraZoom;
+        const worldLeft = -cameraOffsetX / cameraZoom;
+        const worldTop = -cameraOffsetY / cameraZoom;
+        ctx.fillRect(worldLeft - worldVisibleWidth, worldTop - worldVisibleHeight, worldVisibleWidth * 3, worldVisibleHeight * 3);
+    }
+
     // Restore canvas state after camera transformations
     ctx.restore();
 
@@ -25415,7 +25432,9 @@ function drawFullScene() {
                         nightGradient: ['#2F4F2F', '#1F3F1F', '#0F2F0F'], // Dark forest night
                         groundColor: '#4A6B3A', // Rich moss green ground
                         fogColor: 'rgba(75, 105, 60, 0.25)', // Forest mist
-                        particleColor: '#90C090' // Green spores/pollen
+                        particleColor: '#90C090', // Green spores/pollen
+                        // Gameplay: More butterflies, squirrels, natural spawns
+                        spawnMultiplier: 1.5
                     };
 
                     const treeCount = 15 + Math.floor(Math.random() * 5);
@@ -25454,7 +25473,9 @@ function drawFullScene() {
                         nightGradient: ['#7A8CA0', '#5A6C80', '#3A4C60'], // Serene zen night
                         groundColor: '#D4C4B0', // Sandy beige ground
                         fogColor: 'rgba(200, 220, 230, 0.15)', // Subtle mist
-                        particleColor: '#FFFFFF' // Floating white petals
+                        particleColor: '#FFFFFF', // Floating white petals
+                        // Gameplay: Quieter birds, peaceful atmosphere
+                        quietMultiplier: 0.5
                     };
 
                     const spacing = canvas.width / 4;
@@ -25493,7 +25514,9 @@ function drawFullScene() {
                         nightGradient: ['#6B4A88', '#523A68', '#392A48'], // Deep mystical night
                         groundColor: '#8B7BA8', // Mystical purple-gray ground
                         fogColor: 'rgba(180, 159, 209, 0.2)', // Ethereal purple mist
-                        particleColor: '#E8D4F8' // Floating magical sparkles
+                        particleColor: '#E8D4F8', // Floating magical sparkles
+                        // Gameplay: More fireflies at night, magical atmosphere
+                        fireflyMultiplier: 2.0
                     };
 
                     const treeCount = 8 + Math.floor(Math.random() * 4);
@@ -25602,8 +25625,8 @@ function drawFullScene() {
                         scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', size, '#95A5B5'));
                     }
 
-                    // Add obelisk at the peak (no color override)
-                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 125, 'obelisk', 55));
+                    // Add massive obelisk at the peak (no color override) - taller than trees!
+                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 200, 'obelisk', 100));
 
                 } else if (scenarioType < 0.786) {
                     // "Mirror Grove" - Perfect left-right symmetry
@@ -25671,7 +25694,9 @@ function drawFullScene() {
                         nightGradient: ['#4A3F35', '#3A2F25', '#2A1F15'], // Cool desert night
                         groundColor: '#D2A679', // Hot sand ground
                         fogColor: 'rgba(232, 200, 154, 0.25)', // Heat shimmer
-                        particleColor: '#FFE4B5' // Sand particles
+                        particleColor: '#FFE4B5', // Sand particles
+                        // Gameplay: No natural rain in desert
+                        noRain: true
                     };
 
                     const treeCount = 2 + Math.floor(Math.random() * 2); // 2-3 trees only
@@ -25712,7 +25737,9 @@ function drawFullScene() {
                         nightGradient: ['#3C4858', '#2C3848', '#1C2838'], // Tempest night
                         groundColor: '#6B7B8B', // Dark stormy ground
                         fogColor: 'rgba(134, 152, 168, 0.3)', // Heavy storm clouds
-                        particleColor: '#B8C8D8' // Wind-blown debris
+                        particleColor: '#B8C8D8', // Wind-blown debris
+                        // Gameplay: 2x rain frequency, more lightning
+                        stormIntensity: 2.0
                     };
 
                     const treeCount = 6 + Math.floor(Math.random() * 4);
@@ -25780,11 +25807,11 @@ function drawFullScene() {
                         trees.push(tree);
                     }
 
-                    // Add ancient stone pillars and obelisks
+                    // Add ancient stone pillars and obelisks - towering monuments!
                     const centerX = canvas.width / 2;
-                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 120, 'obelisk', 50));
-                    scenarioStructures.push(new PerchableStructure(centerX - 100, canvas.height - 100, 'pillar', 45));
-                    scenarioStructures.push(new PerchableStructure(centerX + 100, canvas.height - 100, 'pillar', 45));
+                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 220, 'obelisk', 110));
+                    scenarioStructures.push(new PerchableStructure(centerX - 120, canvas.height - 180, 'pillar', 90));
+                    scenarioStructures.push(new PerchableStructure(centerX + 120, canvas.height - 180, 'pillar', 90));
 
                     // Add scattered weathered sandstone ruins
                     for (let i = 0; i < 6; i++) {

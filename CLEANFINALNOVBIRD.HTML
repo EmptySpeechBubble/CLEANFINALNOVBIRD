@@ -7015,13 +7015,15 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                 anim.footShuffleTimer += deltaTime;
                 if (anim.footShuffleTimer > 8000 && Math.random() < 0.0003) {
                     anim.leftFootUp = !anim.leftFootUp;
-                    setTimeout(() => {
+                    const footTimer1 = setTimeout(() => {
                         anim.rightFootUp = !anim.rightFootUp;
-                        setTimeout(() => {
+                        const footTimer2 = setTimeout(() => {
                             anim.leftFootUp = false;
                             anim.rightFootUp = false;
                         }, 200);
+                        addTimer(footTimer2); // Track nested timer
                     }, 200);
+                    addTimer(footTimer1); // Track timer
                     anim.footShuffleTimer = 0;
                 }
 
@@ -7204,7 +7206,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                 // Store reference to neighbor and spot for validation
                                 const neighborBird = neighbor;
                                 const neighborSpot = hasLeftBird ? leftNeighbor : rightNeighbor;
-                                setTimeout(() => {
+                                const duetTimer = setTimeout(() => {
                                     // Validate neighbor still exists and is on sill before chirping
                                     if (neighborBird.sillAnimation &&
                                         neighborSpot.occupied &&
@@ -7219,6 +7221,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                         }
                                     }
                                 }, 200); // Slight delay for duet effect
+                                addTimer(duetTimer); // Track timer
                             }
                         }
                     }
@@ -7324,7 +7327,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
 
                     if (Date.now() - bird.sillPerchStartTime > bird.sillPerchDuration) {
                         // Start leaving transition
-                        bird.sillTransitionProgress = 0;
+                        bird.sillTransitionProgress = 0.001; // Use 0.001 instead of 0 so transition check is truthy
                         bird.sillTransitionDirection = 'leaving';
                         bird.sillPerchStartTime = null;
                         bird.sillAnimation = null;
@@ -8472,10 +8475,11 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             // Reset the nest to be ready for new babies after a delay
             if (this.associatedNest) {
                 this.associatedNest.lastBabyTime = Date.now();
-                setTimeout(() => {
+                const nestReadyTimer = setTimeout(() => {
                     this.associatedNest.readyForBabies = true;
                     debugLog(`Nest at (${this.associatedNest.x}, ${this.associatedNest.y}) ready for new babies!`);
                 }, 60000); // One minute cooldown before new babies
+                addTimer(nestReadyTimer); // Track timer
             }
                         
             return true; // Should be removed
@@ -8749,7 +8753,8 @@ function spawnBird() {
 
         function checkAndAlertForHungryBabies() {
             // Find hungry babies that haven't been fed for a while
-            const hungryBabies = babyBirds.filter(baby => baby.timeSinceLastMeal > 30); // Reduced from 60
+            // FIXED: Add null/undefined check for timeSinceLastMeal
+            const hungryBabies = babyBirds.filter(baby => baby.timeSinceLastMeal !== undefined && baby.timeSinceLastMeal !== null && baby.timeSinceLastMeal > 30); // Reduced from 60
             
             // Alert birds for each hungry baby
             for (const baby of hungryBabies) {
@@ -9822,8 +9827,24 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                 const treeIndex = trees.indexOf(tree);
                 const shouldRemove = tree.degrade(deltaTime);
                 if (shouldRemove) {
+                    // FIXED: Cleanup eggs and babies before removing nests
+                    const nestsToRemove = nests.filter(nest => nest.tree === tree);
+                    nestsToRemove.forEach(nest => {
+                        // Make eggs fall
+                        eggs.filter(egg => egg.associatedNest === nest).forEach(egg => {
+                            if (egg.startFalling) egg.startFalling();
+                        });
+                        // Make babies fall
+                        babyBirds.filter(baby => baby.associatedNest === nest).forEach(baby => {
+                            if (baby.startFalling) baby.startFalling();
+                        });
+                    });
+
                     // Remove nests associated with this tree (fix floating nest bug)
                     nests = nests.filter(nest => nest.tree !== tree);
+
+                    // FIXED: Remove wind chimes associated with this tree (fix memory leak)
+                    windChimes = windChimes.filter(chime => chime.treeId !== tree.id);
 
                     // FIXED: Make birds fly away when their tree disappears
                     birds.forEach(bird => {
@@ -9865,8 +9886,25 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                 // Remove it if health is below threshold
                 if (leastHealthyIndex !== -1 && lowestHealth < 40) {
                     const removedTree = trees[leastHealthyIndex];
+
+                    // FIXED: Cleanup eggs and babies before removing nests
+                    const nestsToRemove = nests.filter(nest => nest.tree === removedTree);
+                    nestsToRemove.forEach(nest => {
+                        // Make eggs fall
+                        eggs.filter(egg => egg.associatedNest === nest).forEach(egg => {
+                            if (egg.startFalling) egg.startFalling();
+                        });
+                        // Make babies fall
+                        babyBirds.filter(baby => baby.associatedNest === nest).forEach(baby => {
+                            if (baby.startFalling) baby.startFalling();
+                        });
+                    });
+
                     // Remove nests associated with this tree (fix floating nest bug)
                     nests = nests.filter(nest => nest.tree !== removedTree);
+
+                    // FIXED: Remove wind chimes associated with this tree (fix memory leak)
+                    windChimes = windChimes.filter(chime => chime.treeId !== removedTree.id);
 
                     // FIXED: Make birds fly away when their tree is removed
                     birds.forEach(bird => {

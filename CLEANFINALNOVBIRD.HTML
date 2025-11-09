@@ -470,6 +470,7 @@
             <button id="triggerUFOBtn">🛸 Trigger UFO</button>
             <button id="triggerMigrationBtn">🦅 Trigger Migration</button>
             <button id="triggerFirefliesBtn">✨ Trigger Fireflies</button>
+            <button id="cycleScenarioBtn">🎨 Cycle Scenario (Current: None)</button>
         </div>
 
     <div id="screenshotMessage" class="screenshot-message">Screenshot saved!</div>
@@ -24944,13 +24945,45 @@ function drawFullScene() {
             scenarioStructures = [];
 
             // NEW: 5% chance for special initial garden scenarios (14 unique scenarios!)
-            const specialScenarioRoll = Math.random();
+            // OR forced scenario from debug button
+            let specialScenarioRoll = Math.random();
             let useSpecialScenario = false;
             let scenarioInfo = null;
 
-            if (specialScenarioRoll < 0.05) { // 5% chance (reduced for rarity)
+            // Check if we're forcing a specific scenario from debug button
+            if (typeof window.forceScenarioIndex !== 'undefined' && window.forceScenarioIndex >= 0) {
                 useSpecialScenario = true;
-                const scenarioType = Math.random();
+                specialScenarioRoll = 0; // Force special scenario
+            }
+
+            if (specialScenarioRoll < 0.05 || useSpecialScenario) { // 5% chance (reduced for rarity) OR forced
+                useSpecialScenario = true;
+
+                // Map forceScenarioIndex to scenarioType ranges
+                let scenarioType;
+                if (typeof window.forceScenarioIndex !== 'undefined' && window.forceScenarioIndex >= 0) {
+                    // Force specific scenario based on index
+                    const scenarioRanges = [
+                        0.035,  // 0: Ancient Garden (0-0.071 range, use midpoint)
+                        0.107,  // 1: Baby Forest (0.071-0.143 range)
+                        0.178,  // 2: Twin Giants (0.143-0.214 range)
+                        0.25,   // 3: Sacred Grove (0.214-0.286 range)
+                        0.321,  // 4: Orchard (0.286-0.357 range)
+                        0.393,  // 5: Wild Wilderness (0.357-0.429 range) - ENHANCED
+                        0.464,  // 6: Zen Garden (0.429-0.5 range) - ENHANCED
+                        0.535,  // 7: Enchanted Path (0.5-0.571 range) - ENHANCED
+                        0.607,  // 8: Cluster Chaos (0.571-0.643 range) - ENHANCED
+                        0.678,  // 9: Mountain Peaks (0.643-0.714 range) - ENHANCED
+                        0.75,   // 10: Mirror Grove (0.714-0.786 range) - ENHANCED
+                        0.821,  // 11: Desert Oasis (0.786-0.857 range) - ENHANCED
+                        0.893,  // 12: Storm Survivors (0.857-0.929 range) - ENHANCED
+                        0.964   // 13: Ancient Ruins (0.929-1.0 range) - ENHANCED
+                    ];
+                    scenarioType = scenarioRanges[window.forceScenarioIndex];
+                    delete window.forceScenarioIndex; // Clear the flag
+                } else {
+                    scenarioType = Math.random();
+                }
 
                 if (scenarioType < 0.071) {
                     // "Ancient Garden" - Single massive ancient tree
@@ -26795,6 +26828,55 @@ triggerFirefliesBtn.addEventListener('click', () => {
     }
     debugLog(`Firefly night triggered manually (${count} fireflies)`);
 });
+
+// Cycle through special scenarios button
+let currentScenarioIndex = -1; // -1 = none/random, 0-13 = specific scenarios
+const scenarioNames = [
+    'Ancient Garden',
+    'Baby Forest',
+    'Twin Giants',
+    'Sacred Grove',
+    'Orchard',
+    'Wild Wilderness', // Enhanced
+    'Zen Garden', // Enhanced
+    'Enchanted Path', // Enhanced
+    'Cluster Chaos', // Enhanced
+    'Mountain Peaks', // Enhanced
+    'Mirror Grove', // Enhanced
+    'Desert Oasis', // Enhanced
+    'Storm Survivors', // Enhanced
+    'Ancient Ruins' // Enhanced
+];
+
+const cycleScenarioBtn = document.getElementById('cycleScenarioBtn');
+if (cycleScenarioBtn) {
+    cycleScenarioBtn.addEventListener('click', () => {
+        // Stop current animation
+        stopAnimation();
+
+        // Cycle to next scenario
+        currentScenarioIndex = (currentScenarioIndex + 1) % scenarioNames.length;
+
+        // Update button text
+        cycleScenarioBtn.textContent = `🎨 Cycle Scenario (Current: ${scenarioNames[currentScenarioIndex]})`;
+
+        // Force the specific scenario by modifying the scenario roll
+        const originalStartAnimation = window.startAnimationOriginal || startAnimation;
+        if (!window.startAnimationOriginal) {
+            window.startAnimationOriginal = startAnimation;
+        }
+
+        // Temporarily override startAnimation to force our scenario
+        window.forceScenarioIndex = currentScenarioIndex;
+
+        // Start with forced scenario
+        setTimeout(() => {
+            startAnimation();
+        }, 100);
+
+        debugLog(`Loading scenario: ${scenarioNames[currentScenarioIndex]}`);
+    });
+}
 
 // REMOVED: Trigger Lightning button - was causing white screen issues
 

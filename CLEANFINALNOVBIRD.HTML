@@ -25345,6 +25345,14 @@ function drawFullScene() {
                         title: 'Ancient Garden',
                         description: 'A solitary elder tree stands watch over your garden'
                     };
+
+                    // Gameplay: More fruit/food spawns, birds stay longer
+                    scenarioAtmosphere = {
+                        name: 'ancient',
+                        foodMultiplier: 2.0,
+                        birdLoyalty: 1.5
+                    };
+
                     const x = canvas.width / 2;
                     const tree = new Tree(x, 40, 250 + Math.random() * 100, 90, true);
                     tree.age = TREE_LIFESPAN * 0.7;
@@ -25358,6 +25366,15 @@ function drawFullScene() {
                         title: 'Baby Forest',
                         description: 'A nursery of young saplings sprouts across the land'
                     };
+
+                    // Gameplay: Faster tree growth, more baby birds, more butterflies
+                    scenarioAtmosphere = {
+                        name: 'baby',
+                        treeGrowthRate: 1.5,
+                        babyBirdMultiplier: 2.0,
+                        butterflyMultiplier: 1.5
+                    };
+
                     const treeCount = 12 + Math.floor(Math.random() * 4);
                     for (let i = 0; i < treeCount; i++) {
                         const x = 100 + Math.random() * (canvas.width - 200);
@@ -25373,6 +25390,14 @@ function drawFullScene() {
                         title: 'Twin Giants',
                         description: 'Two ancient sentinels stand as eternal guardians'
                     };
+
+                    // Gameplay: More nesting, bird families prefer staying together
+                    scenarioAtmosphere = {
+                        name: 'twins',
+                        nestingBonus: 1.5,
+                        familyBonding: 2.0
+                    };
+
                     const centerX = canvas.width / 2;
                     const spacing = 150;
                     for (let i = 0; i < 2; i++) {
@@ -25390,6 +25415,15 @@ function drawFullScene() {
                         title: 'Sacred Grove',
                         description: 'A mystical circle of trees forms a natural temple'
                     };
+
+                    // Gameplay: Birds more social, special bird songs, peaceful
+                    scenarioAtmosphere = {
+                        name: 'sacred',
+                        socialMultiplier: 1.5,
+                        songChance: 2.0,
+                        peacefulAura: true
+                    };
+
                     const treeCount = 6 + Math.floor(Math.random() * 3);
                     const centerX = canvas.width / 2;
                     const radius = Math.min(300, canvas.width * 0.25);
@@ -25409,6 +25443,15 @@ function drawFullScene() {
                         title: 'Orchard',
                         description: 'A cultivated row of trees awaits careful tending'
                     };
+
+                    // Gameplay: Much more fruit/food production, organized
+                    scenarioAtmosphere = {
+                        name: 'orchard',
+                        fruitProduction: 3.0,
+                        foodAbundance: 2.5,
+                        organized: true
+                    };
+
                     const treeCount = 7 + Math.floor(Math.random() * 3);
                     for (let i = 0; i < treeCount; i++) {
                         const x = 100 + (i * (canvas.width - 200) / (treeCount - 1));
@@ -25556,7 +25599,11 @@ function drawFullScene() {
                         nightGradient: ['#6B5F43', '#5B4F33', '#4B3F23'], // Dusky contested night
                         groundColor: '#9B8B5F', // Earthy brown ground
                         fogColor: 'rgba(217, 200, 158, 0.15)', // Light golden haze
-                        particleColor: '#FFE5A0' // Golden leaves floating
+                        particleColor: '#FFE5A0', // Golden leaves floating
+                        // Gameplay: More competitive spawns, faster tree spawning, more action
+                        treeSpawnRate: 1.5,
+                        competitiveMode: true,
+                        activityMultiplier: 1.3
                     };
 
                     for (let cluster = 0; cluster < 3; cluster++) {
@@ -25597,7 +25644,11 @@ function drawFullScene() {
                         nightGradient: ['#3A4C60', '#2A3C50', '#1A2C40'], // Cold mountain night
                         groundColor: '#758AA0', // Rocky gray-blue ground
                         fogColor: 'rgba(168, 190, 216, 0.18)', // Mountain mist
-                        particleColor: '#FFFFFF' // Snow/mist particles
+                        particleColor: '#FFFFFF', // Snow/mist particles
+                        // Gameplay: Rare mountain birds, colder climate, owls more common
+                        rareBirdChance: 1.5,
+                        owlMultiplier: 2.0,
+                        coldClimate: true
                     };
 
                     const treeCount = 7 + Math.floor(Math.random() * 4);
@@ -25643,7 +25694,11 @@ function drawFullScene() {
                         nightGradient: ['#5A6878', '#4A5868', '#3A4858'], // Mirror dark night
                         groundColor: '#B0B8C8', // Shimmering silver ground
                         fogColor: 'rgba(208, 216, 232, 0.12)', // Crystalline shimmer
-                        particleColor: '#F0F8FF' // Sparkling reflections
+                        particleColor: '#F0F8FF', // Sparkling reflections
+                        // Gameplay: Balanced spawns, mirrored behaviors, harmony
+                        symmetryMode: true,
+                        balancedSpawns: true,
+                        harmonyBonus: 1.5
                     };
 
                     const pairsCount = 3 + Math.floor(Math.random() * 2); // 3-4 pairs
@@ -25780,7 +25835,12 @@ function drawFullScene() {
                         nightGradient: ['#4A3F35', '#3A2F25', '#2A1F15'], // Ruins at night
                         groundColor: '#A1907A', // Weathered stone ground
                         fogColor: 'rgba(139, 122, 106, 0.2)', // Ancient dust
-                        particleColor: '#D4C4B0' // Floating dust motes
+                        particleColor: '#D4C4B0', // Floating dust motes
+                        // Gameplay: More crows, rats, scavengers; ancient mysteries
+                        crowMultiplier: 2.5,
+                        ratMultiplier: 2.0,
+                        scavengerBonus: true,
+                        mysteryEvents: 1.5
                     };
 
                     // Four corner pillars

@@ -5665,7 +5665,9 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             const skyGradient = ctx.createLinearGradient(0, -canvas.height, 0, canvas.height * GROUND_HEIGHT_RATIO);
 
             // SPECIAL SCENARIO ATMOSPHERE: Override sky with scenario-specific colors
-            if (scenarioAtmosphere) {
+            // Only use scenario gradients if they actually exist
+            let hasScenarioGradient = false;
+            if (scenarioAtmosphere && (scenarioAtmosphere.dayGradient || scenarioAtmosphere.nightGradient || scenarioAtmosphere.skyGradient)) {
                 // Choose day or night gradient based on timeOfDay
                 let gradient;
                 if (timeOfDay < 1) {
@@ -5680,8 +5682,11 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                     skyGradient.addColorStop(0, gradient[0]);
                     skyGradient.addColorStop(0.5, gradient[1]);
                     skyGradient.addColorStop(1, gradient[2]);
+                    hasScenarioGradient = true;
                 }
-            } else {
+            }
+
+            if (!hasScenarioGradient) {
                 // Normal sky gradient
                 // Top of sky (darker/more saturated)
                 skyGradient.addColorStop(0, skyColor);

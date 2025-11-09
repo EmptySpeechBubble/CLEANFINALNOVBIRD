@@ -5659,11 +5659,22 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             const skyGradient = ctx.createLinearGradient(0, -canvas.height, 0, canvas.height * GROUND_HEIGHT_RATIO);
 
             // SPECIAL SCENARIO ATMOSPHERE: Override sky with scenario-specific colors
-            if (scenarioAtmosphere && scenarioAtmosphere.skyGradient) {
-                // Use special scenario gradient (3 colors)
-                skyGradient.addColorStop(0, scenarioAtmosphere.skyGradient[0]);
-                skyGradient.addColorStop(0.5, scenarioAtmosphere.skyGradient[1]);
-                skyGradient.addColorStop(1, scenarioAtmosphere.skyGradient[2]);
+            if (scenarioAtmosphere) {
+                // Choose day or night gradient based on timeOfDay
+                let gradient;
+                if (timeOfDay < 1) {
+                    // Day gradient
+                    gradient = scenarioAtmosphere.dayGradient || scenarioAtmosphere.skyGradient;
+                } else {
+                    // Night gradient
+                    gradient = scenarioAtmosphere.nightGradient || scenarioAtmosphere.skyGradient;
+                }
+
+                if (gradient) {
+                    skyGradient.addColorStop(0, gradient[0]);
+                    skyGradient.addColorStop(0.5, gradient[1]);
+                    skyGradient.addColorStop(1, gradient[2]);
+                }
             } else {
                 // Normal sky gradient
                 // Top of sky (darker/more saturated)
@@ -9891,11 +9902,12 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
 
         // Perchable Structure for Special Scenarios
         class PerchableStructure {
-            constructor(x, y, type, size) {
+            constructor(x, y, type, size, colorTheme = null) {
                 this.x = x;
                 this.y = y;
                 this.type = type; // 'stone', 'lantern', 'pillar', 'stump', 'obelisk', 'shrine'
                 this.size = size;
+                this.colorTheme = colorTheme; // Optional color override for themed scenarios
                 this.perchSpots = this.generatePerchSpots();
                 this.id = Math.random().toString(36).substr(2, 9);
             }
@@ -9954,7 +9966,7 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                 switch (this.type) {
                     case 'stone':
                         // Rounded stone with perspective and depth
-                        const stoneColor = '#888888';
+                        const stoneColor = this.colorTheme || '#888888';
                         const stoneDark = darkenColor(stoneColor, 50);
                         const stoneLight = lightenColor(stoneColor, 40);
 
@@ -10104,10 +10116,10 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
 
                     case 'stump':
                         // Tree stump with perspective
-                        const stumpColor = '#8B7355';
+                        const stumpColor = this.colorTheme || '#8B7355';
                         const stumpDark = darkenColor(stumpColor, 50);
                         const stumpLight = lightenColor(stumpColor, 30);
-                        const barkColor = '#654321';
+                        const barkColor = darkenColor(stumpColor, 30);
 
                         // Base shadow (ellipse for perspective)
                         ctx.fillStyle = stumpDark;
@@ -25396,10 +25408,11 @@ function drawFullScene() {
                         description: 'Untamed nature has already claimed this space'
                     };
 
-                    // Set dense forest atmosphere
+                    // Set dense forest atmosphere with day/night
                     scenarioAtmosphere = {
                         name: 'wilderness',
-                        skyGradient: ['#7FA87F', '#6B8E6B', '#577457'], // Deep forest green sky
+                        dayGradient: ['#7FA87F', '#6B8E6B', '#577457'], // Deep forest green day
+                        nightGradient: ['#2F4F2F', '#1F3F1F', '#0F2F0F'], // Dark forest night
                         groundColor: '#4A6B3A', // Rich moss green ground
                         fogColor: 'rgba(75, 105, 60, 0.25)', // Forest mist
                         particleColor: '#90C090' // Green spores/pollen
@@ -25413,17 +25426,17 @@ function drawFullScene() {
                         trees.push(tree);
                     }
 
-                    // Add wild forest stumps scattered throughout
+                    // Add wild forest stumps scattered throughout (weathered brown)
                     const stumpCount = 8 + Math.floor(Math.random() * 4);
                     for (let i = 0; i < stumpCount; i++) {
                         const x = 100 + Math.random() * (canvas.width - 200);
-                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 70, 'stump', 35 + Math.random() * 25));
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 70, 'stump', 35 + Math.random() * 25, '#7A6A4A'));
                     }
 
-                    // Add a few large stones
+                    // Add mossy green stones
                     for (let i = 0; i < 4; i++) {
                         const x = 120 + Math.random() * (canvas.width - 240);
-                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 90, 'stone', 40 + Math.random() * 20));
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 90, 'stone', 40 + Math.random() * 20, '#6B7B5B'));
                     }
 
                 } else if (scenarioType < 0.5) {
@@ -25434,10 +25447,11 @@ function drawFullScene() {
                         description: 'Harmony through simplicity - three trees in perfect balance'
                     };
 
-                    // Set peaceful zen atmosphere
+                    // Set peaceful zen atmosphere with day/night
                     scenarioAtmosphere = {
                         name: 'zen',
-                        skyGradient: ['#E8F4F8', '#C5E1EA', '#A8D5E2'], // Pale blue zen sky
+                        dayGradient: ['#E8F4F8', '#C5E1EA', '#A8D5E2'], // Pale blue zen day
+                        nightGradient: ['#7A8CA0', '#5A6C80', '#3A4C60'], // Serene zen night
                         groundColor: '#D4C4B0', // Sandy beige ground
                         fogColor: 'rgba(200, 220, 230, 0.15)', // Subtle mist
                         particleColor: '#FFFFFF' // Floating white petals
@@ -25451,15 +25465,15 @@ function drawFullScene() {
                         trees.push(tree);
                     }
 
-                    // Add zen stones and lanterns
+                    // Add zen stones (pale gray)
                     const stoneCount = 5 + Math.floor(Math.random() * 3);
                     for (let i = 0; i < stoneCount; i++) {
                         const x = 100 + Math.random() * (canvas.width - 200);
-                        const stone = new PerchableStructure(x, canvas.height - 80, 'stone', 30 + Math.random() * 20);
+                        const stone = new PerchableStructure(x, canvas.height - 80, 'stone', 30 + Math.random() * 20, '#C0C0C0');
                         scenarioStructures.push(stone);
                     }
 
-                    // Add two lanterns flanking the center
+                    // Add two lanterns flanking the center (no color override - keep traditional)
                     const centerX = canvas.width / 2;
                     scenarioStructures.push(new PerchableStructure(centerX - 150, canvas.height - 100, 'lantern', 40));
                     scenarioStructures.push(new PerchableStructure(centerX + 150, canvas.height - 100, 'lantern', 40));
@@ -25472,10 +25486,11 @@ function drawFullScene() {
                         description: 'Trees line both sides of an invisible pathway'
                     };
 
-                    // Set magical mystical atmosphere
+                    // Set magical mystical atmosphere with day/night
                     scenarioAtmosphere = {
                         name: 'enchanted',
-                        skyGradient: ['#D4B5E8', '#B89FD1', '#9C89BA'], // Magical purple sky
+                        dayGradient: ['#D4B5E8', '#B89FD1', '#9C89BA'], // Magical purple day
+                        nightGradient: ['#6B4A88', '#523A68', '#392A48'], // Deep mystical night
                         groundColor: '#8B7BA8', // Mystical purple-gray ground
                         fogColor: 'rgba(180, 159, 209, 0.2)', // Ethereal purple mist
                         particleColor: '#E8D4F8' // Floating magical sparkles
@@ -25511,10 +25526,11 @@ function drawFullScene() {
                         description: 'Three groves compete for dominance of the garden'
                     };
 
-                    // Set vibrant competitive atmosphere
+                    // Set vibrant competitive atmosphere with day/night
                     scenarioAtmosphere = {
                         name: 'chaos',
-                        skyGradient: ['#F4E8C1', '#D9C89E', '#BEA87B'], // Golden competitive sky
+                        dayGradient: ['#F4E8C1', '#D9C89E', '#BEA87B'], // Golden competitive day
+                        nightGradient: ['#6B5F43', '#5B4F33', '#4B3F23'], // Dusky contested night
                         groundColor: '#9B8B5F', // Earthy brown ground
                         fogColor: 'rgba(217, 200, 158, 0.15)', // Light golden haze
                         particleColor: '#FFE5A0' // Golden leaves floating
@@ -25551,10 +25567,11 @@ function drawFullScene() {
                         description: 'Trees rise like mountain peaks, tallest at the summit'
                     };
 
-                    // Set alpine mountain atmosphere
+                    // Set alpine mountain atmosphere with day/night
                     scenarioAtmosphere = {
                         name: 'mountain',
-                        skyGradient: ['#C8D8E8', '#A8BED8', '#88A4C8'], // Cool mountain sky
+                        dayGradient: ['#C8D8E8', '#A8BED8', '#88A4C8'], // Cool mountain day
+                        nightGradient: ['#3A4C60', '#2A3C50', '#1A2C40'], // Cold mountain night
                         groundColor: '#758AA0', // Rocky gray-blue ground
                         fogColor: 'rgba(168, 190, 216, 0.18)', // Mountain mist
                         particleColor: '#FFFFFF' // Snow/mist particles
@@ -25577,15 +25594,15 @@ function drawFullScene() {
                         if (heightMultiplier > 0.8) tallTreeCount++;
                     }
 
-                    // Add stones along the ascending path to the peak
+                    // Add icy gray-blue stones along the ascending path to the peak
                     for (let i = 0; i < 9; i++) {
                         const x = 100 + (i * (canvas.width - 200) / 8);
                         const distFromCenter = Math.abs(x - centerX) / (canvas.width / 2);
                         const size = 25 + ((1 - distFromCenter) * 30); // Larger stones near peak
-                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', size));
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', size, '#95A5B5'));
                     }
 
-                    // Add obelisk at the peak
+                    // Add obelisk at the peak (no color override)
                     scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 125, 'obelisk', 55));
 
                 } else if (scenarioType < 0.786) {
@@ -25596,10 +25613,11 @@ function drawFullScene() {
                         description: 'Nature creates a perfect reflection across the garden'
                     };
 
-                    // Set crystalline mirror atmosphere
+                    // Set crystalline mirror atmosphere with day/night
                     scenarioAtmosphere = {
                         name: 'mirror',
-                        skyGradient: ['#E0E8F0', '#D0D8E8', '#C0C8D8'], // Reflective silver sky
+                        dayGradient: ['#E0E8F0', '#D0D8E8', '#C0C8D8'], // Reflective silver day
+                        nightGradient: ['#5A6878', '#4A5868', '#3A4858'], // Mirror dark night
                         groundColor: '#B0B8C8', // Shimmering silver ground
                         fogColor: 'rgba(208, 216, 232, 0.12)', // Crystalline shimmer
                         particleColor: '#F0F8FF' // Sparkling reflections
@@ -25646,10 +25664,11 @@ function drawFullScene() {
                         description: 'A precious cluster of life in an endless expanse'
                     };
 
-                    // Set hot desert atmosphere
+                    // Set hot desert atmosphere with day/night
                     scenarioAtmosphere = {
                         name: 'desert',
-                        skyGradient: ['#F5DEB3', '#E8C89A', '#DBB281'], // Warm sandy sky
+                        dayGradient: ['#F5DEB3', '#E8C89A', '#DBB281'], // Warm sandy day
+                        nightGradient: ['#4A3F35', '#3A2F25', '#2A1F15'], // Cool desert night
                         groundColor: '#D2A679', // Hot sand ground
                         fogColor: 'rgba(232, 200, 154, 0.25)', // Heat shimmer
                         particleColor: '#FFE4B5' // Sand particles
@@ -25667,15 +25686,15 @@ function drawFullScene() {
                         tallTreeCount++;
                     }
 
-                    // Add stones in a ring around the oasis
+                    // Add sandy desert stones in a ring around the oasis
                     for (let i = 0; i < 8; i++) {
                         const angle = (i / 8) * Math.PI * 2;
                         const radius = 120 + Math.random() * 40;
                         const x = centerX + Math.cos(angle) * radius;
-                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 85, 'stone', 30 + Math.random() * 25));
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 85, 'stone', 30 + Math.random() * 25, '#C9A876'));
                     }
 
-                    // Add shrine at the heart of the oasis
+                    // Add shrine at the heart of the oasis (no color override - keep traditional)
                     scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 110, 'shrine', 42));
 
                 } else if (scenarioType < 0.929) {
@@ -25686,10 +25705,11 @@ function drawFullScene() {
                         description: 'Windswept trees bent by the relentless gale'
                     };
 
-                    // Set stormy windswept atmosphere
+                    // Set stormy windswept atmosphere with day/night
                     scenarioAtmosphere = {
                         name: 'storm',
-                        skyGradient: ['#9CA8B8', '#8698A8', '#708898'], // Stormy gray sky
+                        dayGradient: ['#9CA8B8', '#8698A8', '#708898'], // Stormy gray day
+                        nightGradient: ['#3C4858', '#2C3848', '#1C2838'], // Tempest night
                         groundColor: '#6B7B8B', // Dark stormy ground
                         fogColor: 'rgba(134, 152, 168, 0.3)', // Heavy storm clouds
                         particleColor: '#B8C8D8' // Wind-blown debris
@@ -25706,16 +25726,16 @@ function drawFullScene() {
                         trees.push(tree);
                     }
 
-                    // Add weathered stumps - remnants of fallen trees
+                    // Add weathered stumps - remnants of fallen trees (dark gray)
                     for (let i = 0; i < 10; i++) {
                         const x = 90 + Math.random() * (canvas.width - 180);
-                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 70, 'stump', 25 + Math.random() * 20));
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 70, 'stump', 25 + Math.random() * 20, '#6A6A6A'));
                     }
 
-                    // Add scattered stones blown by the wind
+                    // Add scattered dark stones blown by the wind
                     for (let i = 0; i < 5; i++) {
                         const x = 100 + Math.random() * (canvas.width - 200);
-                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', 28 + Math.random() * 18));
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', 28 + Math.random() * 18, '#5A6A7A'));
                     }
 
                 } else {
@@ -25726,10 +25746,11 @@ function drawFullScene() {
                         description: 'Pillars of an forgotten temple stand among new growth'
                     };
 
-                    // Set ancient mystical atmosphere
+                    // Set ancient mystical atmosphere with day/night
                     scenarioAtmosphere = {
                         name: 'ruins',
-                        skyGradient: ['#C9B8A8', '#A89688', '#8B7A6A'], // Dusty ancient sky
+                        dayGradient: ['#C9B8A8', '#A89688', '#8B7A6A'], // Dusty ancient day
+                        nightGradient: ['#4A3F35', '#3A2F25', '#2A1F15'], // Ruins at night
                         groundColor: '#A1907A', // Weathered stone ground
                         fogColor: 'rgba(139, 122, 106, 0.2)', // Ancient dust
                         particleColor: '#D4C4B0' // Floating dust motes
@@ -25765,10 +25786,10 @@ function drawFullScene() {
                     scenarioStructures.push(new PerchableStructure(centerX - 100, canvas.height - 100, 'pillar', 45));
                     scenarioStructures.push(new PerchableStructure(centerX + 100, canvas.height - 100, 'pillar', 45));
 
-                    // Add scattered ruined stones
+                    // Add scattered weathered sandstone ruins
                     for (let i = 0; i < 6; i++) {
                         const x = 100 + Math.random() * (canvas.width - 200);
-                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', 25 + Math.random() * 15));
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', 25 + Math.random() * 15, '#B8A890'));
                     }
                 }
 

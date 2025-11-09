@@ -9949,15 +9949,27 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                         spots.push({ x: this.x, y: this.y - this.size * 1.2, occupied: false });
                         break;
                     case 'pillar':
-                        spots.push({ x: this.x, y: this.y - this.size * 1.5, occupied: false });
+                        // Multiple perch levels for tall pillars
+                        spots.push({ x: this.x, y: this.y - this.size * 1.5, occupied: false }); // Top
                         spots.push({ x: this.x - this.size * 0.3, y: this.y - this.size * 1.2, occupied: false });
                         spots.push({ x: this.x + this.size * 0.3, y: this.y - this.size * 1.2, occupied: false });
+                        // Add mid-level perches for very large pillars (size > 100)
+                        if (this.size > 100) {
+                            spots.push({ x: this.x - this.size * 0.25, y: this.y - this.size * 0.8, occupied: false });
+                            spots.push({ x: this.x + this.size * 0.25, y: this.y - this.size * 0.8, occupied: false });
+                        }
                         break;
                     case 'stump':
                         spots.push({ x: this.x, y: this.y - this.size * 0.5, occupied: false });
                         break;
                     case 'obelisk':
-                        spots.push({ x: this.x, y: this.y - this.size * 1.8, occupied: false });
+                        // Multiple perch levels for towering obelisks
+                        spots.push({ x: this.x, y: this.y - this.size * 1.8, occupied: false }); // Near top
+                        // Add mid and lower perches for very large obelisks (size > 150)
+                        if (this.size > 150) {
+                            spots.push({ x: this.x, y: this.y - this.size * 1.2, occupied: false }); // Mid-high
+                            spots.push({ x: this.x, y: this.y - this.size * 0.7, occupied: false }); // Mid-low
+                        }
                         break;
                     case 'shrine':
                         spots.push({ x: this.x, y: this.y - this.size * 1.0, occupied: false });
@@ -25696,8 +25708,9 @@ function drawFullScene() {
                         scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', size, '#95A5B5'));
                     }
 
-                    // Add massive obelisk at the peak (no color override) - taller than trees!
-                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 200, 'obelisk', 100));
+                    // Add massive towering obelisk at the peak - dramatic mountain monument!
+                    const groundY = canvas.height * GROUND_HEIGHT_RATIO;
+                    scenarioStructures.push(new PerchableStructure(centerX, groundY, 'obelisk', 220));
 
                 } else if (scenarioType < 0.786) {
                     // "Mirror Grove" - Perfect left-right symmetry
@@ -25887,11 +25900,12 @@ function drawFullScene() {
                         trees.push(tree);
                     }
 
-                    // Add ancient stone pillars and obelisks - towering monuments!
+                    // Add ancient stone pillars and obelisks - massive towering monuments!
                     const centerX = canvas.width / 2;
-                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 220, 'obelisk', 110));
-                    scenarioStructures.push(new PerchableStructure(centerX - 120, canvas.height - 180, 'pillar', 90));
-                    scenarioStructures.push(new PerchableStructure(centerX + 120, canvas.height - 180, 'pillar', 90));
+                    const groundY = canvas.height * GROUND_HEIGHT_RATIO;
+                    scenarioStructures.push(new PerchableStructure(centerX, groundY, 'obelisk', 250));
+                    scenarioStructures.push(new PerchableStructure(centerX - 150, groundY, 'pillar', 180));
+                    scenarioStructures.push(new PerchableStructure(centerX + 150, groundY, 'pillar', 180));
 
                     // Add scattered weathered sandstone ruins
                     for (let i = 0; i < 6; i++) {

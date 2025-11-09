@@ -2167,6 +2167,7 @@ let rainsCompleted = 0; // Track number of completed rain events (for pond forma
         const MAX_SILL_BIRDS = 3; // Maximum birds on sill at once
         const SILL_TRANSITION_DURATION = 2500; // 2.5 second transition time (was 1s) - slower, more graceful
         const SILL_APPROACH_DISTANCE = 150; // Start transition when this close to sill
+        const SILL_HOP_CHANCE = 0.0015; // 0.15% chance per frame (~once every 11 seconds at 60fps)
         let quietModeEnabled = false; // 80% reduction in chirping for chill vibe
 
         // Sill bird melody system
@@ -7331,8 +7332,8 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
 
                     // Try to initiate a hop (random chance, only if awake and not already hopping)
                     if (bird.sillAnimation && !bird.sillAnimation.isSleeping && !bird.sillAnimation.isHopping) {
-                        // Random chance to hop (0.05% per frame when awake)
-                        if (Math.random() < 0.0005) {
+                        // Random chance to hop
+                        if (Math.random() < SILL_HOP_CHANCE) {
                             // Find available adjacent spots
                             const currentIndex = sillPerchSpots.indexOf(spot);
                             const adjacentSpots = [];

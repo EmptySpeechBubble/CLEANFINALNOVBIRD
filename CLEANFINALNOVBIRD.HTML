@@ -6572,6 +6572,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                     emoteY: 0,
                     isSleeping: shouldBeSleeping,
                     sleepStartTime: shouldBeSleeping ? Date.now() : 0,
+                    sleepDuration: shouldBeSleeping ? (30000 + Math.random() * 60000) : 0,
                     zzzTimer: 0,
                     // Hopping animation
                     isHopping: false,
@@ -6975,6 +6976,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                 if (Math.random() < 0.0002) {
                     anim.isSleeping = true;
                     anim.sleepStartTime = Date.now();
+                    anim.sleepDuration = 30000 + Math.random() * 60000; // Sleep for 30-90 seconds
                     anim.headTurnTarget = 0; // Face forward while sleeping
                 }
             }
@@ -6983,6 +6985,17 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             anim.bodyBob += deltaTime * anim.bodyBobSpeed;
 
             if (anim.isSleeping) {
+                // Check if bird should wake up naturally
+                const timeAsleep = Date.now() - anim.sleepStartTime;
+                if (timeAsleep > anim.sleepDuration) {
+                    // Wake up naturally
+                    anim.isSleeping = false;
+                    anim.sleepStartTime = null;
+                    anim.sleepDuration = 0;
+                    anim.currentEmote = null;
+                    anim.zzzTimer = 0;
+                }
+
                 // Sleeping behavior
                 // ZZZ emotes
                 anim.zzzTimer += deltaTime;
@@ -7151,6 +7164,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                 emoteY: 0,
                                 isSleeping: shouldBeSleeping,
                                 sleepStartTime: shouldBeSleeping ? Date.now() : 0,
+                                sleepDuration: shouldBeSleeping ? (30000 + Math.random() * 60000) : 0,
                                 zzzTimer: 0,
                                 headTurnAngle: 0,
                                 headTurnTarget: 0,

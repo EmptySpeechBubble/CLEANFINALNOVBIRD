@@ -24940,9 +24940,69 @@ function drawFullScene() {
         function startAnimation() {
             if (animationRunning) return;
 
-            // Clear previous scenario atmosphere and structures
+            // Clear ALL previous game state (for scenario cycling and fresh starts)
+            trees = [];
+            birds = [];
+            eggs = [];
+            babyBirds = [];
+            nests = [];
+            squirrels = [];
+            rats = [];
+            crows = [];
+            owls = [];
+            foodItems = [];
+            worms = [];
+            butterflies = [];
+            birdhouses = [];
+            puddles = [];
+            ponds = [];
+            frogs = [];
+            koi = [];
+            flowers = [];
+            stones = [];
+            bushes = [];
+            twigs = [];
+            birdPoops = [];
+            lightningStrikes = [];
+            specialEffects = [];
+            ants = [];
+            birdTrails = [];
+            mushroomClusters = [];
+            foodCaches = [];
+            fireflies = [];
+            tallGrassPatches = [];
+            beamedUpEntities = [];
+            dangerZones = [];
+            sharedFoodKnowledge = [];
+            activeChirps = [];
+
+            // Clear scenario-specific elements
             scenarioAtmosphere = null;
             scenarioStructures = [];
+
+            // Reset scenario-specific objects and flags
+            antHill = null;
+            scarecrow = null;
+            scarecrowCreated = false;
+            magicMushroom = null;
+            magicMushroomAppeared = false;
+            gameboy = null;
+            gameboyOwlDelivered = false;
+            ufo = null;
+            meteorShower = null;
+            eclipse = null;
+            migrationWave = null;
+            crowVisitInProgress = false;
+            crowVisitTimer = 0;
+            fireflyNightActive = false;
+            rainbowVisible = false;
+            rainbowOpacity = 0;
+            rainbowTimer = 0;
+            isDoubleRainbow = false;
+            playingTheHits = false;
+            tallTreeCount = 0;
+
+            debugLog("Game state cleared for fresh start");
 
             // NEW: 5% chance for special initial garden scenarios (14 unique scenarios!)
             // OR forced scenario from debug button

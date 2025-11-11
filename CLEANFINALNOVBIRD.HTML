@@ -1912,6 +1912,7 @@ function updateGameboy(deltaTime) {
         let worms = [];
         let birdPoops = [];
         let rats = [];
+        let lastRatKingSpawnTime = Date.now(); // Track for guaranteed spawn timer
         let trees = [];
         let bushes = []; // Ground-level bushes for perching, food, and creature spawns
         let twigs = [];
@@ -2173,7 +2174,8 @@ let rainsCompleted = 0; // Track number of completed rain events (for pond forma
         // Sill bird melody system
         let currentSillMelody = null; // Current melody for sill birds to chirp
         let currentSillMelodyIndex = 0; // Current note index in the melody
-        let lastMelodyHour = -1; // Track hour to change melody
+        let lastMelodyChangeTime = Date.now(); // Track time for 10-minute melody changes
+        const MELODY_CHANGE_INTERVAL = 600000; // 10 minutes in milliseconds
 
         // Garden Diary System
         let diaryEntries = []; // Array of {day: number, event: string, timestamp: number, type: string}
@@ -2345,7 +2347,8 @@ let rainsCompleted = 0; // Track number of completed rain events (for pond forma
         const STAR_COUNT = 100;
         const WORM_WIGGLE_SPEED = 0.1;
         const MAX_RATS = 5; // Reduced from 6
-        const RAT_KING_FORMATION_CHANCE = 0.08; // INCREASED: More common (8% instead of 3%)
+        const RAT_KING_FORMATION_CHANCE = 0.25; // INCREASED: 25% chance for ~once every 10 days
+        const RAT_KING_GUARANTEED_TIME = 2400000; // 40 minutes (10 days at 4 min/day) - force spawn if none
         const MAX_SQUIRRELS = 3; // Reduced from 4
         const TWIG_SPAWN_RATE = 10000; // Every 10 (?) seconds
         const ANT_SPEED = 0.6;
@@ -6664,22 +6667,62 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             ctx.translate(drawX, drawY - size * 0.6);
             ctx.rotate(anim.headTilt);
 
-            // Head - bigger and rounder for cuteness
-            ctx.fillStyle = bodyColor;
-            ctx.beginPath();
-            ctx.arc(0, 0, size * 1.0, 0, Math.PI * 2);
-            ctx.fill();
+            // MUSHROOM MODE: Draw scarecrow head instead of bird head
+            if (mushroomMode) {
+                // Scarecrow head - burlap texture
+                ctx.fillStyle = '#D4B483'; // Burlap color
+                ctx.beginPath();
+                ctx.arc(0, 0, size * 1.0, 0, Math.PI * 2);
+                ctx.fill();
 
-            // Eyes - bigger for cuteness
-            const eyeY = -size * 0.2;
-            const eyeSpacing = size * 0.45;
-            const turnAmount = isSleeping ? 0 : Math.abs(anim.headTurnAngle); // No head turning while sleeping
+                // Simple stitched eyes (X marks)
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+                const eyeSize = size * 0.2;
+                const eyeSpacing = size * 0.45;
 
-            // Determine if showing side view (turned > 0.6)
-            const isSideView = !isSleeping && turnAmount > 0.6;
-            const turnDirection = anim.headTurnAngle > 0 ? 1 : -1; // 1 = right, -1 = left
+                // Left eye X
+                ctx.beginPath();
+                ctx.moveTo(-eyeSpacing - eyeSize, -eyeSize);
+                ctx.lineTo(-eyeSpacing + eyeSize, eyeSize);
+                ctx.moveTo(-eyeSpacing + eyeSize, -eyeSize);
+                ctx.lineTo(-eyeSpacing - eyeSize, eyeSize);
+                ctx.stroke();
 
-            if (isSideView) {
+                // Right eye X
+                ctx.beginPath();
+                ctx.moveTo(eyeSpacing - eyeSize, -eyeSize);
+                ctx.lineTo(eyeSpacing + eyeSize, eyeSize);
+                ctx.moveTo(eyeSpacing + eyeSize, -eyeSize);
+                ctx.lineTo(eyeSpacing - eyeSize, eyeSize);
+                ctx.stroke();
+
+                // Stitched smile
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, size * 0.2, size * 0.4, 0.2, Math.PI - 0.2);
+                ctx.stroke();
+            } else {
+                // Normal bird head - bigger and rounder for cuteness
+                ctx.fillStyle = bodyColor;
+                ctx.beginPath();
+                ctx.arc(0, 0, size * 1.0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // MUSHROOM MODE: Skip bird eyes and beak, scarecrow already has face
+            if (!mushroomMode) {
+                // Eyes - bigger for cuteness
+                const eyeY = -size * 0.2;
+                const eyeSpacing = size * 0.45;
+                const turnAmount = isSleeping ? 0 : Math.abs(anim.headTurnAngle); // No head turning while sleeping
+
+                // Determine if showing side view (turned > 0.6)
+                const isSideView = !isSleeping && turnAmount > 0.6;
+                const turnDirection = anim.headTurnAngle > 0 ? 1 : -1; // 1 = right, -1 = left
+
+                if (isSideView) {
                 // Side view - single eye visible on the turned side
                 const eyeX = turnDirection * size * 0.3;
                 ctx.fillStyle = '#FFFFFF';
@@ -6786,7 +6829,8 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                 ctx.lineTo(size * 0.1, size * 0.45 - anim.beakOpen * 2);
                 ctx.closePath();
                 ctx.fill();
-            }
+                }
+            } // End of !mushroomMode check
 
             ctx.restore();
 
@@ -7136,6 +7180,13 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                 bird.y = (bird.sillTargetSpot.y - cameraOffsetY) / cameraZoom;
                                 bird.velocity.x = 0;
                                 bird.velocity.y = 0;
+
+                                // OCTAVE ASSIGNMENT: Each sill bird gets a different octave multiplier
+                                // Based on how many birds are currently on the sill (0, 1, or 2)
+                                const occupiedCount = sillPerchSpots.filter(spot => spot.occupied && spot.bird !== bird).length;
+                                const octaveMultipliers = [1.0, 1.5, 2.0]; // Lower, middle, higher octaves
+                                bird.sillOctaveMultiplier = octaveMultipliers[occupiedCount % 3];
+                                debugLog(`Bird assigned octave multiplier: ${bird.sillOctaveMultiplier}x (bird #${occupiedCount + 1})`);
                             }
 
                             // Clean up approach position data
@@ -7542,15 +7593,18 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                     const freq = currentSillMelody.notes[currentSillMelodyIndex];
                                     const duration = currentSillMelody.durations[currentSillMelodyIndex];
 
+                                    // Use this bird's octave multiplier (1.0x, 1.5x, or 2.0x)
+                                    const octave = spot.bird.sillOctaveMultiplier || 1.5; // Default to 1.5 if not set
+
                                     const osc = audioContext.createOscillator();
                                     const gain = audioContext.createGain();
                                     const filter = audioContext.createBiquadFilter();
 
                                     osc.type = 'sine';
-                                    osc.frequency.value = freq * 1.5; // Higher pitch for bird voice
+                                    osc.frequency.value = freq * octave; // Apply bird's octave
 
                                     filter.type = 'bandpass';
-                                    filter.frequency.value = freq * 1.5;
+                                    filter.frequency.value = freq * octave;
                                     filter.Q.value = 4;
 
                                     osc.connect(filter);
@@ -12726,13 +12780,26 @@ if (shelterChance > 0 && Math.random() < shelterChance) {
                                 break;
                             }
                         }
-                    
-                        if (!this.perchTarget || !this.perchTarget.tree || trees.indexOf(this.perchTarget.tree) === -1) {
+
+                        // FIXED: Check if perch target is still valid (allow non-tree perches like clocks, bushes, structures)
+                        if (!this.perchTarget) {
+                            // No perch target, can't perch
+                            this.state = BIRD_STATES.FLYING;
+                            this.stateTimer = 0;
+                            this.perchTarget = null;
+
+                            // Generate path upward
+                            this.generatePath(this.x, this.y - 50);
+                            break;
+                        }
+
+                        // If perch has a tree, check if tree still exists
+                        if (this.perchTarget.tree && trees.indexOf(this.perchTarget.tree) === -1) {
                             // Tree is gone, can't perch
                             this.state = BIRD_STATES.FLYING;
                             this.stateTimer = 0;
                             this.perchTarget = null;
-                            
+
                             // Generate path upward
                             this.generatePath(this.x, this.y - 50);
                             break;
@@ -13983,8 +14050,10 @@ if (shelterChance > 0 && Math.random() < shelterChance) {
                             }
                         }
 
-                        if (!nearestWater || minDist > 50) {
-                            // No water nearby, find one
+                        // FIXED: Only abort if water is VERY far away (was 50px, now 500px)
+                        // This allows birds to fly to water from normal distances without constantly resetting path
+                        if (!nearestWater || minDist > 500) {
+                            // No water nearby or too far, find closer one
                             this.findPuddle();
                             break;
                         }
@@ -20430,12 +20499,27 @@ function drawRainbow() {
 
 // Check if we should create a scarecrow (with new requirements)
 function checkForScarecrow() {
+    // Don't check too frequently - only every 5 seconds
+    if (!window.lastScarecrowCheck) window.lastScarecrowCheck = 0;
+    if (Date.now() - window.lastScarecrowCheck < 5000) return;
+    window.lastScarecrowCheck = Date.now();
+
     // Count completed birdhouses
     const completedBirdhouses = birdhouses.filter(bh => bh.isComplete).length;
 
     // Requirements: 2 birdhouses (need 2 to place scarecrow between them), seen 1 rainbow, and 10 flowers
     if (completedBirdhouses >= 2 && rainbowsShown >= 1 && flowers.length >= 10 && !scarecrowCreated) {
+        debugLog(`✓ Scarecrow conditions met! Birdhouses: ${completedBirdhouses}, Rainbows: ${rainbowsShown}, Flowers: ${flowers.length}`);
         createScarecrow();
+    } else if (!scarecrowCreated) {
+        // Debug log to help diagnose why scarecrow isn't spawning
+        const reasons = [];
+        if (completedBirdhouses < 2) reasons.push(`Need 2 birdhouses (have ${completedBirdhouses})`);
+        if (rainbowsShown < 1) reasons.push(`Need 1 rainbow (have ${rainbowsShown})`);
+        if (flowers.length < 10) reasons.push(`Need 10 flowers (have ${flowers.length})`);
+        if (reasons.length > 0) {
+            debugLog(`Scarecrow not ready: ${reasons.join(', ')}`);
+        }
     }
 }
 
@@ -21770,9 +21854,17 @@ function drawAnts() {
                     y = canvas.height * GROUND_HEIGHT_RATIO;
                 }
 
-                // FIXED: Rat king only spawns if there are 2+ rats close together (overlapping)
+                // FIXED: Rat king spawning with higher chance + backup timer
                 let isRatKing = false;
-                if (rats.length >= 2 && Math.random() < RAT_KING_FORMATION_CHANCE) {
+                const timeSinceLastRatKing = Date.now() - lastRatKingSpawnTime;
+
+                // BACKUP TIMER: Guarantee rat king spawn if it's been more than 10 days (40 minutes)
+                if (timeSinceLastRatKing > RAT_KING_GUARANTEED_TIME) {
+                    isRatKing = true;
+                    debugLog(`Guaranteed rat king spawn after ${(timeSinceLastRatKing / 60000).toFixed(1)} minutes!`);
+                }
+                // Normal spawning: 25% chance when 2+ rats are close together
+                else if (rats.length >= 2 && Math.random() < RAT_KING_FORMATION_CHANCE) {
                     // Check if any 2 rats are overlapping (within 50px of each other)
                     let foundOverlap = false;
                     for (let i = 0; i < rats.length && !foundOverlap; i++) {
@@ -21793,6 +21885,11 @@ function drawAnts() {
                 // Create rat
                 const rat = new Rat(x, y, isRatKing);
                 rats.push(rat);
+
+                // Update timer when rat king spawns
+                if (isRatKing) {
+                    lastRatKingSpawnTime = Date.now();
+                }
 
                 if (spawnSource === 'bush') {
                     debugLog(`${isRatKing ? 'Rat king' : 'Rat'} emerged from bush at (${x}, ${y})`);
@@ -22600,18 +22697,20 @@ function spawnOwls() {
             }
         }
 
-        // Check for hour change and update sill bird melody
+        // Check for 10-minute interval and update sill bird melody
         function checkSillBirdMelody() {
-            const now = new Date();
-            const currentHour = now.getHours();
+            const now = Date.now();
+            const timeSinceLastChange = now - lastMelodyChangeTime;
 
-            if (currentHour !== lastMelodyHour) {
-                lastMelodyHour = currentHour;
-                // Change melody each hour
+            // Change melody every 10 minutes instead of every hour
+            if (timeSinceLastChange >= MELODY_CHANGE_INTERVAL) {
+                lastMelodyChangeTime = now;
+                // Change melody every 10 minutes
                 const allMelodies = getAllMelodies();
                 currentSillMelody = allMelodies[Math.floor(Math.random() * allMelodies.length)];
                 currentSillMelodyIndex = 0; // Reset to start of melody
-                debugLog(`🎵 New sill bird melody for the hour: "${currentSillMelody.name}"`);
+                const minutesElapsed = Math.floor(timeSinceLastChange / 60000);
+                debugLog(`🎵 New sill bird melody (${minutesElapsed} min elapsed): "${currentSillMelody.name}"`);
             }
         }
 

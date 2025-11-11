@@ -1458,8 +1458,7 @@ function updateBirdTrails() {
     <strong>Time:</strong> ${timeOfDay < 1 ? 'Day' : 'Night'} (${displayHour12}:${minutes.toString().padStart(2, '0')})<br>
     <strong>Weather:</strong> ${isRaining ? (isThundering ? 'Thunderstorm' : 'Raining') : 'Clear'}<br>
     <strong>Days Elapsed:</strong> ${dayNightCycleCount}<br>
-    <strong>Rainbows Seen:</strong> ${rainbowsShown}<br>
-    ${!scarecrowCreated ? `<strong>Scarecrow Progress:</strong> ${birdhouses.filter(bh => bh.isComplete).length}/2 Birdhouses, ${rainbowsShown}/1 Rainbows, ${flowers.length}/10 Flowers, Day ${dayNightCycleCount}/30` : '<strong>Scarecrow:</strong> Active'}
+    <strong>Rainbows Seen:</strong> ${rainbowsShown}
 `;
     }
 
@@ -14062,9 +14061,11 @@ if (shelterChance > 0 && Math.random() < shelterChance) {
                             }
                         }
 
-                        // FIXED: Only abort if water is VERY far away (was 50px, now 500px)
+                        // FIXED: Only abort if water is VERY far away - responsive for mobile support
+                        // Desktop: 500px max, Mobile: 40% of screen width
                         // This allows birds to fly to water from normal distances without constantly resetting path
-                        if (!nearestWater || minDist > 500) {
+                        const maxBathingDistance = Math.min(500, canvas.width * 0.4);
+                        if (!nearestWater || minDist > maxBathingDistance) {
                             // No water nearby or too far, find closer one
                             this.findPuddle();
                             break;
@@ -20547,17 +20548,27 @@ function checkForScarecrow() {
 function createScarecrow() {
     // Find position between two birdhouses
     const completedBirdhouses = birdhouses.filter(bh => bh.isComplete);
-    
-    // Need at least 2 birdhouses
-    if (completedBirdhouses.length < 2) return;
-    
-    // Choose two random birdhouses
-    const bh1 = completedBirdhouses[0];
-    const bh2 = completedBirdhouses[1];
-    
-    // Position between them
-    const scarecrowX = (bh1.x + bh2.x) / 2;
-    const scarecrowY = canvas.height * GROUND_HEIGHT_RATIO; // On ground
+
+    let scarecrowX, scarecrowY;
+
+    // FIXED: If we have 2+ birdhouses, place between them. Otherwise, place in a visible spot on grass
+    if (completedBirdhouses.length >= 2) {
+        // Choose two random birdhouses
+        const bh1 = completedBirdhouses[0];
+        const bh2 = completedBirdhouses[1];
+
+        // Position between them
+        scarecrowX = (bh1.x + bh2.x) / 2;
+        scarecrowY = canvas.height * GROUND_HEIGHT_RATIO; // On ground
+        debugLog(`Scarecrow positioned between two birdhouses at (${scarecrowX.toFixed(0)}, ${scarecrowY.toFixed(0)})`);
+    } else {
+        // No birdhouses: place in center-ish area, slightly randomized for variety
+        // Position in the middle 60% of screen (20% margin on each side) for good visibility
+        const margin = canvas.width * 0.2;
+        scarecrowX = margin + Math.random() * (canvas.width - margin * 2);
+        scarecrowY = canvas.height * GROUND_HEIGHT_RATIO; // On ground
+        debugLog(`Scarecrow positioned on grass (no birdhouses) at (${scarecrowX.toFixed(0)}, ${scarecrowY.toFixed(0)})`);
+    }
     
     // Create scarecrow object
     scarecrow = {

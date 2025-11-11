@@ -4516,7 +4516,10 @@ if (trees.length > 0 && Math.random() < 0.15) {
                 
                 // Evaporate puddles very gradually
                 puddle.size -= puddle.evaporationRate * deltaTime;
-                
+
+                // Clamp size to prevent negative values
+                puddle.size = Math.max(0, puddle.size);
+
                 // Remove puddle if too small
                 if (puddle.size <= 5) {
                     puddles.splice(i, 1);
@@ -4527,6 +4530,9 @@ if (trees.length > 0 && Math.random() < 0.15) {
 
         function drawPuddles() {
             puddles.forEach(puddle => {
+                // Skip puddles with invalid size (prevents negative radius crash)
+                if (puddle.size <= 0) return;
+
                 // Main puddle shape - simplified for performance
                 ctx.fillStyle = `rgba(110, 150, 230, ${puddle.depth * 0.7})`;
                 ctx.beginPath();

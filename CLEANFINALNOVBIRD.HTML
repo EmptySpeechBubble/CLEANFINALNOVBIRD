@@ -834,7 +834,8 @@
         window.debugLogThrottling = {};
 
         // Clean up old throttling entries every 60 seconds to prevent memory leak
-        setInterval(() => {
+        // NOTE: This will be tracked by the cleanup system once it's defined
+        const throttleCleanupInterval = setInterval(() => {
             const now = Date.now();
             const keys = Object.keys(window.debugLogThrottling);
             for (const key of keys) {
@@ -848,6 +849,14 @@
                 console.log(`DEBUG: Cleaned up ${keys.length - Object.keys(window.debugLogThrottling).length} old throttling entries`);
             }
         }, 60000);
+        // Store for later tracking (will be added to trackedIntervals after it's defined)
+        if (typeof trackedIntervals !== 'undefined') {
+            trackedIntervals.push(throttleCleanupInterval);
+        } else {
+            // Store in temp array to be added later
+            window._tempIntervals = window._tempIntervals || [];
+            window._tempIntervals.push(throttleCleanupInterval);
+        }
 
         function debugLog(message, level = DEBUG_LEVELS.INFO) {
             if (debugMode && level >= currentDebugLevel) {
@@ -967,11 +976,12 @@
         }
 
         // Add keyboard shortcut to view crash log (Shift+L)
-        document.addEventListener('keydown', (e) => {
+        const crashLogKeyHandler = (e) => {
             if (e.shiftKey && (e.key === 'l' || e.key === 'L')) {
                 showCrashLog();
             }
-        });
+        };
+        addTrackedEventListener(document, 'keydown', crashLogKeyHandler);
 
         // ===========================================
         // SIMULATION HEALTH MONITORING
@@ -985,7 +995,7 @@
         }
 
         // Check simulation health every 5 seconds
-        setInterval(() => {
+        const healthMonitorInterval = setInterval(() => {
             const now = Date.now();
             const timeSinceHeartbeat = now - lastHeartbeat;
 
@@ -1005,6 +1015,13 @@
                 console.warn(`Simulation health: ${simulationHealth} (FPS: ${currentFPS})`);
             }
         }, 5000);
+        // Store for later tracking
+        if (typeof trackedIntervals !== 'undefined') {
+            trackedIntervals.push(healthMonitorInterval);
+        } else {
+            window._tempIntervals = window._tempIntervals || [];
+            window._tempIntervals.push(healthMonitorInterval);
+        }
 
         // Info panel
         const infoPanel = document.getElementById('infoPanel');
@@ -1012,7 +1029,7 @@
         const statsDisplay = document.getElementById('stats');
         
         if (toggleInfo) {  // Add a safety check
-            toggleInfo.addEventListener('click', () => {
+            const toggleInfoHandler = () => {
                 if (infoPanel.style.display === 'none') {
                     infoPanel.style.display = 'block';
                     toggleInfo.textContent = 'ℹ️ Hide Info';
@@ -1020,7 +1037,8 @@
                     infoPanel.style.display = 'none';
                     toggleInfo.textContent = 'ℹ️ Show Info';
                 }
-            });
+            };
+            addTrackedEventListener(toggleInfo, 'click', toggleInfoHandler);
         }
 
         // Debug toggle with keyboard
@@ -1167,7 +1185,7 @@ function activateMushroomMode() {
         }
 
         // Enhanced debugging mode toggle with 'd' key
-        document.addEventListener('keydown', (e) => {
+        const mainKeydownHandler = (e) => {
     if (e.key === 'Escape') {
         // Escape key: close all UI elements for clean view
         const instructionManual = document.getElementById('instructionManual');
@@ -1248,7 +1266,8 @@ function activateMushroomMode() {
             updateDebugVisuals(); // Update UI state
         }
     }
-});
+};
+addTrackedEventListener(document, 'keydown', mainKeydownHandler);
 
 
 
@@ -1355,12 +1374,12 @@ function updateBirdTrails() {
                     x: bird.x,
                     y: bird.y
                 });
-                
-                // Only limit trail length if positions exceed MAX_TRAIL_LENGTH by a lot
-                // This makes trails fade away much more slowly
-                if (trail.positions.length > MAX_TRAIL_LENGTH * 2) {
-                    // Remove oldest positions, but keep more positions than before
-                    trail.positions.splice(0, Math.floor(trail.positions.length * 0.1)); // Remove just 10% of oldest positions
+
+                // Limit trail length to prevent memory leak (reduced threshold from 2x to 1.2x)
+                // This still allows nice trails while preventing unbounded growth
+                if (trail.positions.length > MAX_TRAIL_LENGTH * 1.2) {
+                    // Trim to MAX_TRAIL_LENGTH to prevent memory leak
+                    trail.positions.splice(0, trail.positions.length - MAX_TRAIL_LENGTH);
                 }
             }
         }
@@ -2046,6 +2065,72 @@ let simulationTime = 0; // Track total simulation time for better spawning contr
 let lastStatsUpdate = 0; // Track when we last updated the stats display
 let cloudCover = 0; // For weather transition effects
 let isMuted = false; // Global mute state for all audio
+
+// ===========================================
+// MEMORY LEAK PREVENTION SYSTEM
+// ===========================================
+// Track all event listeners, intervals, and RAF for proper cleanup
+let trackedEventListeners = []; // {element, event, handler}
+let trackedIntervals = []; // Store interval IDs
+let animationFrameId = null; // Track requestAnimationFrame ID
+
+// Function to track event listeners
+function addTrackedEventListener(element, event, handler, options) {
+    element.addEventListener(event, handler, options);
+    trackedEventListeners.push({ element, event, handler, options });
+}
+
+// Function to track intervals
+function addTrackedInterval(callback, delay) {
+    const id = setInterval(callback, delay);
+    trackedIntervals.push(id);
+    return id;
+}
+
+// Comprehensive cleanup function
+function cleanupAllResources() {
+    // Cancel animation frame
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+
+    // Clear all tracked intervals
+    trackedIntervals.forEach(id => clearInterval(id));
+    trackedIntervals = [];
+
+    // Remove all tracked event listeners
+    trackedEventListeners.forEach(({ element, event, handler, options }) => {
+        element.removeEventListener(event, handler, options);
+    });
+    trackedEventListeners = [];
+
+    // Clear all existing timers in animationTimers array
+    if (typeof animationTimers !== 'undefined') {
+        animationTimers.forEach(timer => {
+            if (timer.isInterval) {
+                clearInterval(timer.id);
+            } else {
+                clearTimeout(timer.id);
+            }
+        });
+        animationTimers = [];
+    }
+
+    // Clear all growing arrays
+    if (typeof raindrops !== 'undefined') raindrops.length = 0;
+    if (typeof birdTrails !== 'undefined') birdTrails.length = 0;
+    if (typeof activeChirps !== 'undefined') activeChirps.length = 0;
+    if (typeof emojiConversations !== 'undefined') emojiConversations.length = 0;
+
+    console.log("🧹 All resources cleaned up successfully");
+}
+
+// Transfer any intervals that were created before the tracking system was initialized
+if (window._tempIntervals) {
+    trackedIntervals.push(...window._tempIntervals);
+    window._tempIntervals = null;
+}
 
 // FPS Monitoring for performance tracking
 let fpsFrames = [];
@@ -4120,6 +4205,7 @@ function createFlower(x, y) {
 
         // Rain system
         let raindrops = [];
+        const MAX_RAINDROPS = 500; // Prevent memory leak from unbounded raindrop growth
 
         function scheduleRain() {
           // Rain occurs more frequently for lively ecosystem
@@ -4556,7 +4642,8 @@ if (trees.length > 0 && Math.random() < 0.15) {
 
                 // Draw ripples
                 puddle.ripples.forEach(ripple => {
-                    const opacity = 1 - ripple.size / ripple.maxSize;
+                    // Safety check to prevent division by zero
+                    const opacity = ripple.maxSize > 0 ? 1 - ripple.size / ripple.maxSize : 0;
                     ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
                     ctx.lineWidth = 1;
                     ctx.beginPath();
@@ -4951,13 +5038,13 @@ fish.y = pondCenterY + Math.sin(fish.swimAngle * 2) * radius * 0.4;
 
         // Canvas resize handler that preserves entities and their positions
         let resizeController = null;
-        window.addEventListener('resize', () => {
+        const resizeHandler = () => {
             if (resizeController) clearTimeout(resizeController);
             resizeController = setTimeout(() => {
                 // Just pause animation temporarily instead of stopping it
                 const wasRunning = animationRunning;
                 animationRunning = false;
-                
+
                 try {
                     debugLog("Adjusting canvas size");
                     resizeCanvas();
@@ -4969,27 +5056,29 @@ fish.y = pondCenterY + Math.sin(fish.swimAngle * 2) * radius * 0.4;
                 }
                 resizeController = null;
             }, 200);
-        });
+        };
+        addTrackedEventListener(window, 'resize', resizeHandler);
 
         // Add this visibility change event listener here
-document.addEventListener('visibilitychange', function() {
-    isTabVisible = !document.hidden;
+        const visibilityChangeHandler = function() {
+            isTabVisible = !document.hidden;
 
-    // FIXED: Resume audioContext when tab becomes visible again
-    // This fixes audio muting after clicking gameboy (which opens new window)
-    if (!document.hidden && audioContext && audioContext.state === 'suspended') {
-        audioContext.resume().then(() => {
-            debugLog('AudioContext resumed after tab became visible');
-        }).catch(err => {
-            console.error('Failed to resume audioContext:', err);
-        });
-    }
+            // FIXED: Resume audioContext when tab becomes visible again
+            // This fixes audio muting after clicking gameboy (which opens new window)
+            if (!document.hidden && audioContext && audioContext.state === 'suspended') {
+                audioContext.resume().then(() => {
+                    debugLog('AudioContext resumed after tab became visible');
+                }).catch(err => {
+                    console.error('Failed to resume audioContext:', err);
+                });
+            }
 
-    // Optional: pause rain if tab becomes hidden
-    if (document.hidden && isRaining) {
-        isRaining = false;
-    }
-});
+            // Optional: pause rain if tab becomes hidden
+            if (document.hidden && isRaining) {
+                isRaining = false;
+            }
+        };
+        addTrackedEventListener(document, 'visibilitychange', visibilityChangeHandler);
 
         function resizeCanvas() {
             const prevWidth = canvas.width;
@@ -22190,14 +22279,16 @@ function spawnOwls() {
         // Draw rain
         function drawRain(deltaTime) {
             if (isRaining) {
-                // Add new raindrops at the top of the screen
-                for (let i = 0; i < 5; i++) {
-                    raindrops.push({
-                        x: Math.random() * canvas.width,
-                        y: -20,
-                        length: 10 + Math.random() * 20,
-                        speed: 5 + Math.random() * 10
-                    });
+                // Add new raindrops at the top of the screen (with cap to prevent memory leak)
+                if (raindrops.length < MAX_RAINDROPS) {
+                    for (let i = 0; i < 5; i++) {
+                        raindrops.push({
+                            x: Math.random() * canvas.width,
+                            y: -20,
+                            length: 10 + Math.random() * 20,
+                            speed: 5 + Math.random() * 10
+                        });
+                    }
                 }
                 
                 // Update and draw existing raindrops
@@ -25072,7 +25163,8 @@ for (let i = owls.length - 1; i >= 0; i--) {
     }
 
     // Request next frame (always request, even after error for recovery)
-    requestAnimationFrame(updateAndDraw);
+    // Store RAF ID for proper cleanup
+    animationFrameId = requestAnimationFrame(updateAndDraw);
 }
 
 // Special Scenario Popup - show and auto-fade
@@ -26433,8 +26525,8 @@ function drawFullScene() {
             // Start animation loop
             lastTime = Date.now();
             animationRunning = true;
-            requestAnimationFrame(updateAndDraw);
-            
+            animationFrameId = requestAnimationFrame(updateAndDraw);
+
             debugLog("Animation started");
         }
 
@@ -27645,7 +27737,7 @@ let lastClickTime = 0;
 const clickTimeout = 500; // ms between clicks to count as multi-click
 
 // Canvas click for food and triple-click detection
-canvas.addEventListener('click', (e) => {
+const canvasClickHandler = (e) => {
     // Initialize audio on first click (required by browsers)
     if (!audioContext) {
         const audioInitialized = initializeAudio();
@@ -28018,10 +28110,11 @@ if (gameboy) {
 
     // FIXED: Removed wind chime sound feedback on food scatter
     // Wind chime sounds should only play when clicking ON the wind chime or from ambient wind
-});
+};
+addTrackedEventListener(canvas, 'click', canvasClickHandler);
 
 // Enhanced: Mouse move handler for bird hover detection
-canvas.addEventListener('mousemove', (e) => {
+const canvasMousemoveHandler = (e) => {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
@@ -28077,10 +28170,11 @@ canvas.addEventListener('mousemove', (e) => {
     if (!hoveredTree) {
         hoveredTreeStartTime = 0;
     }
-});
+};
+addTrackedEventListener(canvas, 'mousemove', canvasMousemoveHandler);
 
 // Touch events for mobile
-canvas.addEventListener('touchstart', (e) => {
+const canvasTouchstartHandler = (e) => {
     e.preventDefault(); // Prevent scrolling
     if (e.touches.length > 0) {
         // Initialize audio on first touch (required by browsers)
@@ -28231,7 +28325,8 @@ canvas.addEventListener('touchstart', (e) => {
             debugLog(`Food scattered via touch at (${scaledX}, ${scaledY})`);
         }
     }
-});
+};
+addTrackedEventListener(canvas, 'touchstart', canvasTouchstartHandler);
 
 
         }

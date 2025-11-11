@@ -833,6 +833,14 @@
         // Limit Debug Logging with throttling
         window.debugLogThrottling = {};
 
+        // ===========================================
+        // MEMORY LEAK PREVENTION - Variable Declarations
+        // ===========================================
+        // These must be declared early as they're referenced throughout the code
+        let trackedEventListeners = []; // {element, event, handler}
+        let trackedIntervals = []; // Store interval IDs
+        let animationFrameId = null; // Track requestAnimationFrame ID
+
         // Clean up old throttling entries every 60 seconds to prevent memory leak
         // NOTE: This will be tracked by the cleanup system once it's defined
         const throttleCleanupInterval = setInterval(() => {
@@ -2070,9 +2078,7 @@ let isMuted = false; // Global mute state for all audio
 // MEMORY LEAK PREVENTION SYSTEM
 // ===========================================
 // Track all event listeners, intervals, and RAF for proper cleanup
-let trackedEventListeners = []; // {element, event, handler}
-let trackedIntervals = []; // Store interval IDs
-let animationFrameId = null; // Track requestAnimationFrame ID
+// (Variables declared at the top of the script)
 
 // Function to track event listeners
 function addTrackedEventListener(element, event, handler, options) {

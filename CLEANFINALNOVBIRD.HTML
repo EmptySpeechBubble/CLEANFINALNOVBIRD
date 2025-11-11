@@ -1459,7 +1459,7 @@ function updateBirdTrails() {
     <strong>Weather:</strong> ${isRaining ? (isThundering ? 'Thunderstorm' : 'Raining') : 'Clear'}<br>
     <strong>Days Elapsed:</strong> ${dayNightCycleCount}<br>
     <strong>Rainbows Seen:</strong> ${rainbowsShown}<br>
-    ${!scarecrowCreated ? `<strong>Scarecrow Progress:</strong> ${birdhouses.filter(bh => bh.isComplete).length}/2 Birdhouses, ${rainbowsShown}/1 Rainbows, ${flowers.length}/10 Flowers` : '<strong>Scarecrow:</strong> Active'}
+    ${!scarecrowCreated ? `<strong>Scarecrow Progress:</strong> ${birdhouses.filter(bh => bh.isComplete).length}/2 Birdhouses, ${rainbowsShown}/1 Rainbows, ${flowers.length}/10 Flowers, Day ${dayNightCycleCount}/30` : '<strong>Scarecrow:</strong> Active'}
 `;
     }
 
@@ -20511,13 +20511,20 @@ function drawRainbow() {
 
 // Check if we should create a scarecrow (with new requirements)
 function checkForScarecrow() {
-    // Don't check too frequently - only every 5 seconds
+    // Don't check too frequently - only every 1 minute
     if (!window.lastScarecrowCheck) window.lastScarecrowCheck = 0;
-    if (Date.now() - window.lastScarecrowCheck < 5000) return;
+    if (Date.now() - window.lastScarecrowCheck < 60000) return;
     window.lastScarecrowCheck = Date.now();
 
     // Count completed birdhouses
     const completedBirdhouses = birdhouses.filter(bh => bh.isComplete).length;
+
+    // GUARANTEED SPAWN: At day 30, spawn scarecrow regardless of conditions
+    if (dayNightCycleCount >= 30 && !scarecrowCreated) {
+        debugLog(`✓ Day 30 reached! Guaranteed scarecrow spawn`);
+        createScarecrow();
+        return;
+    }
 
     // Requirements: 2 birdhouses (need 2 to place scarecrow between them), seen 1 rainbow, and 10 flowers
     if (completedBirdhouses >= 2 && rainbowsShown >= 1 && flowers.length >= 10 && !scarecrowCreated) {
@@ -20529,6 +20536,7 @@ function checkForScarecrow() {
         if (completedBirdhouses < 2) reasons.push(`Need 2 birdhouses (have ${completedBirdhouses})`);
         if (rainbowsShown < 1) reasons.push(`Need 1 rainbow (have ${rainbowsShown})`);
         if (flowers.length < 10) reasons.push(`Need 10 flowers (have ${flowers.length})`);
+        if (dayNightCycleCount < 30) reasons.push(`Day ${dayNightCycleCount}/30 (guaranteed at day 30)`);
         if (reasons.length > 0) {
             debugLog(`Scarecrow not ready: ${reasons.join(', ')}`);
         }

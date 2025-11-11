@@ -1458,7 +1458,8 @@ function updateBirdTrails() {
     <strong>Time:</strong> ${timeOfDay < 1 ? 'Day' : 'Night'} (${displayHour12}:${minutes.toString().padStart(2, '0')})<br>
     <strong>Weather:</strong> ${isRaining ? (isThundering ? 'Thunderstorm' : 'Raining') : 'Clear'}<br>
     <strong>Days Elapsed:</strong> ${dayNightCycleCount}<br>
-    <strong>Rainbows Seen:</strong> ${rainbowsShown}
+    <strong>Rainbows Seen:</strong> ${rainbowsShown}<br>
+    ${!scarecrowCreated ? `<strong>Scarecrow Progress:</strong> ${birdhouses.filter(bh => bh.isComplete).length}/2 Birdhouses, ${rainbowsShown}/1 Rainbows, ${flowers.length}/10 Flowers` : '<strong>Scarecrow:</strong> Active'}
 `;
     }
 
@@ -4967,6 +4968,17 @@ fish.y = pondCenterY + Math.sin(fish.swimAngle * 2) * radius * 0.4;
         // Add this visibility change event listener here
 document.addEventListener('visibilitychange', function() {
     isTabVisible = !document.hidden;
+
+    // FIXED: Resume audioContext when tab becomes visible again
+    // This fixes audio muting after clicking gameboy (which opens new window)
+    if (!document.hidden && audioContext && audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+            debugLog('AudioContext resumed after tab became visible');
+        }).catch(err => {
+            console.error('Failed to resume audioContext:', err);
+        });
+    }
+
     // Optional: pause rain if tab becomes hidden
     if (document.hidden && isRaining) {
         isRaining = false;
@@ -25374,6 +25386,24 @@ function drawFullScene() {
 
     // Draw bird interaction UI
     drawBirdInteractionUI();
+
+    // ===== WINDOW SILL & CURTAINS LAYER (top, no camera transform) =====
+    // FIXED: Include window sill, sill birds, and curtains in screenshots
+    if (windowSillEnabled) {
+        drawWindowSill(); // Draw frame first
+
+        // Draw sill-perching birds without animation updates
+        for (const spot of sillPerchSpots) {
+            if (spot.occupied && spot.bird && spot.bird.isOnSill) {
+                const bird = spot.bird;
+                drawSillBirdFrontal(bird, spot.x, spot.y, SILL_BIRD_SCALE);
+            }
+        }
+    }
+
+    if (curtainsEnabled) {
+        drawCurtains(); // Draw curtains on top
+    }
 }
 
 

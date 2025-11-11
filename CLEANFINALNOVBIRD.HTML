@@ -470,6 +470,7 @@
             <button id="triggerUFOBtn">🛸 Trigger UFO</button>
             <button id="triggerMigrationBtn">🦅 Trigger Migration</button>
             <button id="triggerFirefliesBtn">✨ Trigger Fireflies</button>
+            <button id="cycleScenarioBtn">🎨 Cycle Scenario (Current: None)</button>
         </div>
 
     <div id="screenshotMessage" class="screenshot-message">Screenshot saved!</div>
@@ -2027,6 +2028,10 @@ let rainbowTimer = 0;
 let rainbowDuration = dayNightDuration; // Rainbow lasts for a full day/night cycle instead of 60000ms
 let isDoubleRainbow = false; // 1% chance for double rainbow
 
+// Special Scenario Atmosphere System
+let scenarioAtmosphere = null; // {name, skyGradient, groundColor, fogColor, structures: []}
+let scenarioStructures = []; // Perchable structures unique to each scenario
+
 // Scarecrow variables
 let scarecrow = null;
 let scarecrowCreated = false;
@@ -2162,6 +2167,7 @@ let rainsCompleted = 0; // Track number of completed rain events (for pond forma
         const MAX_SILL_BIRDS = 3; // Maximum birds on sill at once
         const SILL_TRANSITION_DURATION = 2500; // 2.5 second transition time (was 1s) - slower, more graceful
         const SILL_APPROACH_DISTANCE = 150; // Start transition when this close to sill
+        const SILL_HOP_CHANCE = 0.0015; // 0.15% chance per frame (~once every 11 seconds at 60fps)
         let quietModeEnabled = false; // 80% reduction in chirping for chill vibe
 
         // Sill bird melody system
@@ -4120,7 +4126,13 @@ function createFlower(x, y) {
             window.nextRainWillThunder = Math.random() < LIGHTNING_CHANCE;
 
             const rainTimer = setTimeout(() => {
-                if (Math.random() < RAIN_PROBABILITY) {
+                // Desert scenarios don't get natural rain
+                const isDesert = scenarioAtmosphere && scenarioAtmosphere.name === 'desert';
+                // Storm scenarios get more frequent rain
+                const isStorm = scenarioAtmosphere && scenarioAtmosphere.name === 'storm';
+                const rainChance = isStorm ? RAIN_PROBABILITY * 2 : RAIN_PROBABILITY;
+
+                if (Math.random() < rainChance && !isDesert) {
                     // Add cloud buildup before rain starts
                     cloudCover = 0;
                     const cloudBuildupDuration = 15000; // 15 seconds
@@ -5653,20 +5665,45 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             // Create smooth gradient instead of solid color for more natural sky
             const skyGradient = ctx.createLinearGradient(0, -canvas.height, 0, canvas.height * GROUND_HEIGHT_RATIO);
 
-            // Top of sky (darker/more saturated)
-            skyGradient.addColorStop(0, skyColor);
+            // SPECIAL SCENARIO ATMOSPHERE: Override sky with scenario-specific colors
+            // Only use scenario gradients if they actually exist
+            let hasScenarioGradient = false;
+            if (scenarioAtmosphere && (scenarioAtmosphere.dayGradient || scenarioAtmosphere.nightGradient || scenarioAtmosphere.skyGradient)) {
+                // Choose day or night gradient based on timeOfDay
+                let gradient;
+                if (timeOfDay < 1) {
+                    // Day gradient
+                    gradient = scenarioAtmosphere.dayGradient || scenarioAtmosphere.skyGradient;
+                } else {
+                    // Night gradient
+                    gradient = scenarioAtmosphere.nightGradient || scenarioAtmosphere.skyGradient;
+                }
 
-            // Middle transition (slightly lighter)
-            const middleColor = skyColor.replace(/(\d+)%\)$/, (match, p1) => {
-                return `${Math.min(100, parseInt(p1) + 10)}%)`;
-            });
-            skyGradient.addColorStop(0.5, middleColor);
+                if (gradient) {
+                    skyGradient.addColorStop(0, gradient[0]);
+                    skyGradient.addColorStop(0.5, gradient[1]);
+                    skyGradient.addColorStop(1, gradient[2]);
+                    hasScenarioGradient = true;
+                }
+            }
 
-            // Bottom of sky near horizon (lighter/less saturated for atmospheric perspective)
-            const horizonColor = skyColor.replace(/(\d+)%, (\d+)%\)$/, (match, p1, p2) => {
-                return `${Math.max(0, parseInt(p1) - 15)}%, ${Math.min(100, parseInt(p2) + 15)}%)`;
-            });
-            skyGradient.addColorStop(1, horizonColor);
+            if (!hasScenarioGradient) {
+                // Normal sky gradient
+                // Top of sky (darker/more saturated)
+                skyGradient.addColorStop(0, skyColor);
+
+                // Middle transition (slightly lighter)
+                const middleColor = skyColor.replace(/(\d+)%\)$/, (match, p1) => {
+                    return `${Math.min(100, parseInt(p1) + 10)}%)`;
+                });
+                skyGradient.addColorStop(0.5, middleColor);
+
+                // Bottom of sky near horizon (lighter/less saturated for atmospheric perspective)
+                const horizonColor = skyColor.replace(/(\d+)%, (\d+)%\)$/, (match, p1, p2) => {
+                    return `${Math.max(0, parseInt(p1) - 15)}%, ${Math.min(100, parseInt(p2) + 15)}%)`;
+                });
+                skyGradient.addColorStop(1, horizonColor);
+            }
 
             ctx.fillStyle = skyGradient;
             // FIXED: Extend sky to cover entire canvas even when camera is zoomed/panned
@@ -5799,7 +5836,14 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
         function drawGround() {
             // Calculate ground position in world coordinates
             const groundY = canvas.height * GROUND_HEIGHT_RATIO;
-            const groundColor = isRaining ? '#7AC552' : (puddles.length > 0 ? '#88DD77' : '#90EE90');
+
+            // Check for scenario-specific ground color first
+            let groundColor;
+            if (scenarioAtmosphere && scenarioAtmosphere.groundColor) {
+                groundColor = scenarioAtmosphere.groundColor;
+            } else {
+                groundColor = isRaining ? '#7AC552' : (puddles.length > 0 ? '#88DD77' : '#90EE90');
+            }
 
             // Calculate the visible world bounds accounting for camera zoom and offset
             // We need to draw ground that covers the entire visible canvas after transformation
@@ -6528,6 +6572,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                     emoteY: 0,
                     isSleeping: shouldBeSleeping,
                     sleepStartTime: shouldBeSleeping ? Date.now() : 0,
+                    sleepDuration: shouldBeSleeping ? (30000 + Math.random() * 60000) : 0,
                     zzzTimer: 0,
                     // Hopping animation
                     isHopping: false,
@@ -6931,6 +6976,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                 if (Math.random() < 0.0002) {
                     anim.isSleeping = true;
                     anim.sleepStartTime = Date.now();
+                    anim.sleepDuration = 30000 + Math.random() * 60000; // Sleep for 30-90 seconds
                     anim.headTurnTarget = 0; // Face forward while sleeping
                 }
             }
@@ -6939,6 +6985,17 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             anim.bodyBob += deltaTime * anim.bodyBobSpeed;
 
             if (anim.isSleeping) {
+                // Check if bird should wake up naturally
+                const timeAsleep = Date.now() - anim.sleepStartTime;
+                if (timeAsleep > anim.sleepDuration) {
+                    // Wake up naturally
+                    anim.isSleeping = false;
+                    anim.sleepStartTime = null;
+                    anim.sleepDuration = 0;
+                    anim.currentEmote = null;
+                    anim.zzzTimer = 0;
+                }
+
                 // Sleeping behavior
                 // ZZZ emotes
                 anim.zzzTimer += deltaTime;
@@ -7015,13 +7072,15 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                 anim.footShuffleTimer += deltaTime;
                 if (anim.footShuffleTimer > 8000 && Math.random() < 0.0003) {
                     anim.leftFootUp = !anim.leftFootUp;
-                    setTimeout(() => {
+                    const footTimer1 = setTimeout(() => {
                         anim.rightFootUp = !anim.rightFootUp;
-                        setTimeout(() => {
+                        const footTimer2 = setTimeout(() => {
                             anim.leftFootUp = false;
                             anim.rightFootUp = false;
                         }, 200);
+                        addTimer(footTimer2); // Track nested timer
                     }, 200);
+                    addTimer(footTimer1); // Track timer
                     anim.footShuffleTimer = 0;
                 }
 
@@ -7105,6 +7164,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                 emoteY: 0,
                                 isSleeping: shouldBeSleeping,
                                 sleepStartTime: shouldBeSleeping ? Date.now() : 0,
+                                sleepDuration: shouldBeSleeping ? (30000 + Math.random() * 60000) : 0,
                                 zzzTimer: 0,
                                 headTurnAngle: 0,
                                 headTurnTarget: 0,
@@ -7204,7 +7264,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                 // Store reference to neighbor and spot for validation
                                 const neighborBird = neighbor;
                                 const neighborSpot = hasLeftBird ? leftNeighbor : rightNeighbor;
-                                setTimeout(() => {
+                                const duetTimer = setTimeout(() => {
                                     // Validate neighbor still exists and is on sill before chirping
                                     if (neighborBird.sillAnimation &&
                                         neighborSpot.occupied &&
@@ -7219,6 +7279,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
                                         }
                                     }
                                 }, 200); // Slight delay for duet effect
+                                addTimer(duetTimer); // Track timer
                             }
                         }
                     }
@@ -7285,8 +7346,8 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
 
                     // Try to initiate a hop (random chance, only if awake and not already hopping)
                     if (bird.sillAnimation && !bird.sillAnimation.isSleeping && !bird.sillAnimation.isHopping) {
-                        // Random chance to hop (0.05% per frame when awake)
-                        if (Math.random() < 0.0005) {
+                        // Random chance to hop
+                        if (Math.random() < SILL_HOP_CHANCE) {
                             // Find available adjacent spots
                             const currentIndex = sillPerchSpots.indexOf(spot);
                             const adjacentSpots = [];
@@ -7324,7 +7385,7 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
 
                     if (Date.now() - bird.sillPerchStartTime > bird.sillPerchDuration) {
                         // Start leaving transition
-                        bird.sillTransitionProgress = 0;
+                        bird.sillTransitionProgress = 0.001; // Use 0.001 instead of 0 so transition check is truthy
                         bird.sillTransitionDirection = 'leaving';
                         bird.sillPerchStartTime = null;
                         bird.sillAnimation = null;
@@ -8472,10 +8533,11 @@ currentHour = Math.floor(((timeOfDay < 1 ? timeOfDay * 12 : 12 + (timeOfDay - 1)
             // Reset the nest to be ready for new babies after a delay
             if (this.associatedNest) {
                 this.associatedNest.lastBabyTime = Date.now();
-                setTimeout(() => {
+                const nestReadyTimer = setTimeout(() => {
                     this.associatedNest.readyForBabies = true;
                     debugLog(`Nest at (${this.associatedNest.x}, ${this.associatedNest.y}) ready for new babies!`);
                 }, 60000); // One minute cooldown before new babies
+                addTimer(nestReadyTimer); // Track timer
             }
                         
             return true; // Should be removed
@@ -8749,7 +8811,8 @@ function spawnBird() {
 
         function checkAndAlertForHungryBabies() {
             // Find hungry babies that haven't been fed for a while
-            const hungryBabies = babyBirds.filter(baby => baby.timeSinceLastMeal > 30); // Reduced from 60
+            // FIXED: Add null/undefined check for timeSinceLastMeal
+            const hungryBabies = babyBirds.filter(baby => baby.timeSinceLastMeal !== undefined && baby.timeSinceLastMeal !== null && baby.timeSinceLastMeal > 30); // Reduced from 60
             
             // Alert birds for each hungry baby
             for (const baby of hungryBabies) {
@@ -9822,8 +9885,24 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                 const treeIndex = trees.indexOf(tree);
                 const shouldRemove = tree.degrade(deltaTime);
                 if (shouldRemove) {
+                    // FIXED: Cleanup eggs and babies before removing nests
+                    const nestsToRemove = nests.filter(nest => nest.tree === tree);
+                    nestsToRemove.forEach(nest => {
+                        // Make eggs fall
+                        eggs.filter(egg => egg.associatedNest === nest).forEach(egg => {
+                            if (egg.startFalling) egg.startFalling();
+                        });
+                        // Make babies fall
+                        babyBirds.filter(baby => baby.associatedNest === nest).forEach(baby => {
+                            if (baby.startFalling) baby.startFalling();
+                        });
+                    });
+
                     // Remove nests associated with this tree (fix floating nest bug)
                     nests = nests.filter(nest => nest.tree !== tree);
+
+                    // FIXED: Remove wind chimes associated with this tree (fix memory leak)
+                    windChimes = windChimes.filter(chime => chime.treeId !== tree.id);
 
                     // FIXED: Make birds fly away when their tree disappears
                     birds.forEach(bird => {
@@ -9847,6 +9926,443 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
             }
         }
 
+        // Perchable Structure for Special Scenarios
+        class PerchableStructure {
+            constructor(x, y, type, size, colorTheme = null) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'stone', 'lantern', 'pillar', 'stump', 'obelisk', 'shrine'
+                this.size = size;
+                this.colorTheme = colorTheme; // Optional color override for themed scenarios
+                this.perchSpots = this.generatePerchSpots();
+                this.id = Math.random().toString(36).substr(2, 9);
+                // Add depth property for proper layering with trees (higher Y = further back)
+                this.depth = this.y;
+            }
+
+            generatePerchSpots() {
+                // Generate perch positions based on structure type
+                const spots = [];
+                switch (this.type) {
+                    case 'stone':
+                        spots.push({ x: this.x, y: this.y - this.size * 0.8, occupied: false });
+                        break;
+                    case 'lantern':
+                        spots.push({ x: this.x, y: this.y - this.size * 1.2, occupied: false });
+                        break;
+                    case 'pillar':
+                        // Multiple perch levels for tall pillars
+                        spots.push({ x: this.x, y: this.y - this.size * 1.5, occupied: false }); // Top
+                        spots.push({ x: this.x - this.size * 0.3, y: this.y - this.size * 1.2, occupied: false });
+                        spots.push({ x: this.x + this.size * 0.3, y: this.y - this.size * 1.2, occupied: false });
+                        // Add mid-level perches for very large pillars (size > 100)
+                        if (this.size > 100) {
+                            spots.push({ x: this.x - this.size * 0.25, y: this.y - this.size * 0.8, occupied: false });
+                            spots.push({ x: this.x + this.size * 0.25, y: this.y - this.size * 0.8, occupied: false });
+                        }
+                        break;
+                    case 'stump':
+                        spots.push({ x: this.x, y: this.y - this.size * 0.5, occupied: false });
+                        break;
+                    case 'obelisk':
+                        // Multiple perch levels for towering obelisks
+                        spots.push({ x: this.x, y: this.y - this.size * 1.8, occupied: false }); // Near top
+                        // Add mid and lower perches for very large obelisks (size > 150)
+                        if (this.size > 150) {
+                            spots.push({ x: this.x, y: this.y - this.size * 1.2, occupied: false }); // Mid-high
+                            spots.push({ x: this.x, y: this.y - this.size * 0.7, occupied: false }); // Mid-low
+                        }
+                        break;
+                    case 'shrine':
+                        spots.push({ x: this.x, y: this.y - this.size * 1.0, occupied: false });
+                        spots.push({ x: this.x - this.size * 0.5, y: this.y - this.size * 0.8, occupied: false });
+                        spots.push({ x: this.x + this.size * 0.5, y: this.y - this.size * 0.8, occupied: false });
+                        break;
+                }
+                return spots;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                // Helper functions for shading (matching bush style)
+                const darkenColor = (color, amount) => {
+                    const hex = color.replace('#', '');
+                    const r = Math.max(0, parseInt(hex.substr(0, 2), 16) - amount);
+                    const g = Math.max(0, parseInt(hex.substr(2, 2), 16) - amount);
+                    const b = Math.max(0, parseInt(hex.substr(4, 2), 16) - amount);
+                    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+                };
+
+                const lightenColor = (color, amount) => {
+                    const hex = color.replace('#', '');
+                    const r = Math.min(255, parseInt(hex.substr(0, 2), 16) + amount);
+                    const g = Math.min(255, parseInt(hex.substr(2, 2), 16) + amount);
+                    const b = Math.min(255, parseInt(hex.substr(4, 2), 16) + amount);
+                    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+                };
+
+                switch (this.type) {
+                    case 'stone':
+                        // Rounded stone with perspective and depth
+                        const stoneColor = this.colorTheme || '#888888';
+                        const stoneDark = darkenColor(stoneColor, 50);
+                        const stoneLight = lightenColor(stoneColor, 40);
+
+                        // Shadow
+                        ctx.fillStyle = stoneDark;
+                        ctx.beginPath();
+                        ctx.ellipse(2, 2, this.size, this.size * 0.5, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Main stone body
+                        ctx.fillStyle = stoneColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, this.size, this.size * 0.5, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Outline
+                        ctx.strokeStyle = stoneDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Highlight
+                        ctx.fillStyle = stoneLight;
+                        ctx.beginPath();
+                        ctx.ellipse(-this.size * 0.2, -this.size * 0.15, this.size * 0.3, this.size * 0.15, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+
+                    case 'lantern':
+                        // Japanese-style lantern with depth
+                        const poleColor = '#8B4513';
+                        const poleDark = darkenColor(poleColor, 40);
+                        const bodyColor = '#D2691E';
+                        const bodyDark = darkenColor(bodyColor, 40);
+                        const bodyLight = lightenColor(bodyColor, 30);
+
+                        // Post shadow
+                        ctx.fillStyle = poleDark;
+                        ctx.fillRect(-this.size * 0.15 + 2, -this.size * 1.2, this.size * 0.3, this.size * 1.2);
+
+                        // Post
+                        ctx.fillStyle = poleColor;
+                        ctx.fillRect(-this.size * 0.15, -this.size * 1.2, this.size * 0.3, this.size * 1.2);
+
+                        // Top cap shadow
+                        ctx.fillStyle = poleDark;
+                        ctx.fillRect(-this.size * 0.5 + 1, -this.size * 1.1 + 1, this.size, this.size * 0.15);
+
+                        // Lantern body shadow
+                        ctx.fillStyle = bodyDark;
+                        ctx.beginPath();
+                        ctx.ellipse(2, -this.size * 0.65 + 2, this.size * 0.45, this.size * 0.35, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Lantern body
+                        ctx.fillStyle = bodyColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 0.65, this.size * 0.45, this.size * 0.35, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Outline
+                        ctx.strokeStyle = bodyDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Light glow - enhanced at night
+                        const isNight = timeOfDay >= 1;
+
+                        if (isNight) {
+                            // Outer glow (large, soft)
+                            const glowGradient = ctx.createRadialGradient(0, -this.size * 0.65, 0, 0, -this.size * 0.65, this.size * 0.8);
+                            glowGradient.addColorStop(0, 'rgba(255, 235, 59, 0.4)');
+                            glowGradient.addColorStop(0.5, 'rgba(255, 235, 59, 0.15)');
+                            glowGradient.addColorStop(1, 'rgba(255, 235, 59, 0)');
+                            ctx.fillStyle = glowGradient;
+                            ctx.beginPath();
+                            ctx.ellipse(0, -this.size * 0.65, this.size * 0.8, this.size * 0.6, 0, 0, Math.PI * 2);
+                            ctx.fill();
+
+                            // Mid glow (medium intensity)
+                            ctx.fillStyle = 'rgba(255, 235, 59, 0.5)';
+                            ctx.beginPath();
+                            ctx.ellipse(0, -this.size * 0.65, this.size * 0.45, this.size * 0.35, 0, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+
+                        // Inner light (always visible, brighter at night)
+                        ctx.fillStyle = '#FFEB3B';
+                        ctx.globalAlpha = isNight ? 0.9 : 0.6;
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 0.65, this.size * 0.3, this.size * 0.25, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+
+                        // Top cap
+                        ctx.fillStyle = poleColor;
+                        ctx.fillRect(-this.size * 0.5, -this.size * 1.1, this.size, this.size * 0.15);
+
+                        // Highlight on body
+                        ctx.fillStyle = bodyLight;
+                        ctx.beginPath();
+                        ctx.ellipse(-this.size * 0.15, -this.size * 0.75, this.size * 0.15, this.size * 0.1, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+
+                    case 'pillar':
+                        // Ancient pillar with perspective
+                        const pillarColor = '#A0A0A0';
+                        const pillarDark = darkenColor(pillarColor, 50);
+                        const pillarLight = lightenColor(pillarColor, 30);
+
+                        // Base shadow
+                        ctx.fillStyle = pillarDark;
+                        ctx.beginPath();
+                        ctx.ellipse(2, 2, this.size * 0.5, this.size * 0.25, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Base
+                        ctx.fillStyle = pillarColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, this.size * 0.5, this.size * 0.25, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = pillarDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Column shaft (tapered for perspective)
+                        ctx.fillStyle = pillarColor;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.35, 0);
+                        ctx.lineTo(-this.size * 0.25, -this.size * 1.5);
+                        ctx.lineTo(this.size * 0.25, -this.size * 1.5);
+                        ctx.lineTo(this.size * 0.35, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.strokeStyle = pillarDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Left side darkening
+                        ctx.fillStyle = pillarDark;
+                        ctx.globalAlpha = 0.3;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.35, 0);
+                        ctx.lineTo(-this.size * 0.25, -this.size * 1.5);
+                        ctx.lineTo(0, -this.size * 1.5);
+                        ctx.lineTo(0, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+
+                        // Capital (top)
+                        ctx.fillStyle = pillarColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 1.5, this.size * 0.4, this.size * 0.2, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = pillarDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Cracks
+                        ctx.strokeStyle = pillarDark;
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.moveTo(this.size * 0.15, -this.size * 1.2);
+                        ctx.lineTo(this.size * 0.05, -this.size * 0.6);
+                        ctx.stroke();
+                        break;
+
+                    case 'stump':
+                        // Tree stump with perspective
+                        const stumpColor = this.colorTheme || '#8B7355';
+                        const stumpDark = darkenColor(stumpColor, 50);
+                        const stumpLight = lightenColor(stumpColor, 30);
+                        const barkColor = darkenColor(stumpColor, 30);
+
+                        // Base shadow (ellipse for perspective)
+                        ctx.fillStyle = stumpDark;
+                        ctx.beginPath();
+                        ctx.ellipse(2, 2, this.size * 0.7, this.size * 0.35, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Side bark
+                        ctx.fillStyle = barkColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 0.25, this.size * 0.7, this.size * 0.25, 0, Math.PI, Math.PI * 2);
+                        ctx.closePath();
+                        ctx.fill();
+
+                        // Bark outline
+                        ctx.strokeStyle = darkenColor(barkColor, 30);
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Top surface
+                        ctx.fillStyle = stumpColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 0.5, this.size * 0.7, this.size * 0.35, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Top outline
+                        ctx.strokeStyle = stumpDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Tree rings
+                        ctx.strokeStyle = stumpDark;
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 0.5, this.size * 0.3, this.size * 0.15, 0, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.ellipse(0, -this.size * 0.5, this.size * 0.5, this.size * 0.25, 0, 0, Math.PI * 2);
+                        ctx.stroke();
+
+                        // Highlight
+                        ctx.fillStyle = stumpLight;
+                        ctx.beginPath();
+                        ctx.ellipse(-this.size * 0.3, -this.size * 0.55, this.size * 0.2, this.size * 0.1, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+
+                    case 'obelisk':
+                        // Tall obelisk with perspective
+                        const obeliskColor = '#2C2C2C';
+                        const obeliskDark = darkenColor(obeliskColor, 30);
+                        const obeliskLight = lightenColor(obeliskColor, 50);
+
+                        // Base shadow
+                        ctx.fillStyle = obeliskDark;
+                        ctx.beginPath();
+                        ctx.ellipse(2, 2, this.size * 0.3, this.size * 0.15, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Base
+                        ctx.fillStyle = obeliskColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, this.size * 0.3, this.size * 0.15, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = obeliskDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Main shaft (slightly tapered)
+                        ctx.fillStyle = obeliskColor;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.25, 0);
+                        ctx.lineTo(-this.size * 0.15, -this.size * 1.8);
+                        ctx.lineTo(this.size * 0.15, -this.size * 1.8);
+                        ctx.lineTo(this.size * 0.25, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.strokeStyle = obeliskDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Left side shading
+                        ctx.fillStyle = obeliskDark;
+                        ctx.globalAlpha = 0.4;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.25, 0);
+                        ctx.lineTo(-this.size * 0.15, -this.size * 1.8);
+                        ctx.lineTo(0, -this.size * 1.8);
+                        ctx.lineTo(0, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+
+                        // Pyramidal top
+                        ctx.fillStyle = obeliskColor;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.15, -this.size * 1.8);
+                        ctx.lineTo(0, -this.size * 2.0);
+                        ctx.lineTo(this.size * 0.15, -this.size * 1.8);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.strokeStyle = obeliskDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Right highlight
+                        ctx.fillStyle = obeliskLight;
+                        ctx.globalAlpha = 0.3;
+                        ctx.beginPath();
+                        ctx.moveTo(0, 0);
+                        ctx.lineTo(0, -this.size * 1.8);
+                        ctx.lineTo(this.size * 0.15, -this.size * 1.8);
+                        ctx.lineTo(this.size * 0.25, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+                        break;
+
+                    case 'shrine':
+                        // Small shrine with perspective
+                        const shrineColor = '#8B0000';
+                        const shrineDark = darkenColor(shrineColor, 40);
+                        const shrineLight = lightenColor(shrineColor, 30);
+                        const roofColor = '#B22222';
+
+                        // Base/floor shadow
+                        ctx.fillStyle = shrineDark;
+                        ctx.beginPath();
+                        ctx.ellipse(2, 2, this.size * 0.6, this.size * 0.3, 0, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Base/floor
+                        ctx.fillStyle = shrineColor;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, this.size * 0.6, this.size * 0.3, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = shrineDark;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Main building body
+                        ctx.fillStyle = shrineColor;
+                        ctx.fillRect(-this.size * 0.5, -this.size * 0.7, this.size, this.size * 0.7);
+                        ctx.strokeStyle = shrineDark;
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(-this.size * 0.5, -this.size * 0.7, this.size, this.size * 0.7);
+
+                        // Left side shading
+                        ctx.fillStyle = shrineDark;
+                        ctx.globalAlpha = 0.3;
+                        ctx.fillRect(-this.size * 0.5, -this.size * 0.7, this.size * 0.5, this.size * 0.7);
+                        ctx.globalAlpha = 1;
+
+                        // Roof
+                        ctx.fillStyle = roofColor;
+                        ctx.beginPath();
+                        ctx.moveTo(-this.size * 0.6, -this.size * 0.7);
+                        ctx.lineTo(0, -this.size * 1.1);
+                        ctx.lineTo(this.size * 0.6, -this.size * 0.7);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.strokeStyle = darkenColor(roofColor, 40);
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Torii-style top beam
+                        ctx.fillStyle = shrineColor;
+                        ctx.fillRect(-this.size * 0.7, -this.size * 1.15, this.size * 1.4, this.size * 0.1);
+                        ctx.strokeStyle = shrineDark;
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(-this.size * 0.7, -this.size * 1.15, this.size * 1.4, this.size * 0.1);
+                        break;
+                }
+
+                ctx.restore();
+            }
+
+            getPerchPositions() {
+                return this.perchSpots;
+            }
+        }
+
         // More dynamic tree regrowth
         function regrowTrees() {
             // Allow more trees, remove unhealthy ones if above max limit
@@ -9865,8 +10381,25 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                 // Remove it if health is below threshold
                 if (leastHealthyIndex !== -1 && lowestHealth < 40) {
                     const removedTree = trees[leastHealthyIndex];
+
+                    // FIXED: Cleanup eggs and babies before removing nests
+                    const nestsToRemove = nests.filter(nest => nest.tree === removedTree);
+                    nestsToRemove.forEach(nest => {
+                        // Make eggs fall
+                        eggs.filter(egg => egg.associatedNest === nest).forEach(egg => {
+                            if (egg.startFalling) egg.startFalling();
+                        });
+                        // Make babies fall
+                        babyBirds.filter(baby => baby.associatedNest === nest).forEach(baby => {
+                            if (baby.startFalling) baby.startFalling();
+                        });
+                    });
+
                     // Remove nests associated with this tree (fix floating nest bug)
                     nests = nests.filter(nest => nest.tree !== removedTree);
+
+                    // FIXED: Remove wind chimes associated with this tree (fix memory leak)
+                    windChimes = windChimes.filter(chime => chime.treeId !== removedTree.id);
 
                     // FIXED: Make birds fly away when their tree is removed
                     birds.forEach(bird => {
@@ -10464,6 +10997,22 @@ if (timeOfDay < 1 && Math.random() < 0.001) {
                         tree: null, // Not a tree
                         bush: bush, // Reference to the bush
                         isBush: true
+                    });
+                });
+
+                // Add special scenario structure perching positions (stones, lanterns, pillars, etc.)
+                scenarioStructures.forEach(structure => {
+                    const positions = structure.getPerchPositions();
+                    positions.forEach(spot => {
+                        allPerchPositions.push({
+                            x: spot.x,
+                            y: spot.y,
+                            inLeaves: false,
+                            tree: null,
+                            bush: null,
+                            structure: structure, // Reference to the structure
+                            isStructure: true
+                        });
                     });
                 });
 
@@ -12160,7 +12709,9 @@ if (shelterChance > 0 && Math.random() < shelterChance) {
                             }
 
                             // Random chirping while idle (increased frequency)
-                            if (Math.random() < 0.006) { // ~0.6% chance per frame
+                            // Reduce by 80% if quiet mode is enabled
+                            const hoppingChirpChance = quietModeEnabled ? 0.0012 : 0.006;
+                            if (Math.random() < hoppingChirpChance) { // ~0.6% chance per frame, or 0.12% in quiet mode
                                 this.chirp(CHIRP_TYPES.SOCIAL, 0.5);
                             }
                         }
@@ -13825,7 +14376,9 @@ if (shelterChance > 0 && Math.random() < shelterChance) {
                         }
 
                         // Occasional chirping while sitting
-                        if (Math.random() < 0.01) {
+                        // Reduce by 80% if quiet mode is enabled
+                        const nestChirpChance = quietModeEnabled ? 0.002 : 0.01;
+                        if (Math.random() < nestChirpChance) { // ~1% chance per frame, or 0.2% in quiet mode
                             this.chirp(CHIRP_TYPES.SOCIAL, 0.3);
                         }
 
@@ -23765,8 +24318,8 @@ if (mushroomMode) {
     }
 
     // ===== MIDDLE GROUND LAYER =====
-    // FIXED: Combine trees and bushes for proper depth-based layering
-    // This prevents the illusion from breaking when bushes overlap trees at different depths
+    // FIXED: Combine trees, bushes, and structures for proper depth-based layering
+    // This prevents the illusion from breaking when objects overlap at different depths
 
     // Update tree degradation first
     for (let i = trees.length - 1; i >= 0; i--) {
@@ -23795,14 +24348,15 @@ if (mushroomMode) {
     // Update bushes
     bushes.forEach(bush => bush.update());
 
-    // Combine and sort vegetation by depth for proper layering
+    // Combine and sort vegetation and structures by depth for proper layering
     const vegetationItems = [
         ...trees.map(tree => ({ type: 'tree', obj: tree, depth: tree.depth })),
-        ...bushes.map(bush => ({ type: 'bush', obj: bush, depth: bush.depth }))
+        ...bushes.map(bush => ({ type: 'bush', obj: bush, depth: bush.depth })),
+        ...scenarioStructures.map(structure => ({ type: 'structure', obj: structure, depth: structure.depth }))
     ];
     vegetationItems.sort((a, b) => b.depth - a.depth);
 
-    // Draw in depth order
+    // Draw in depth order (structures now layer correctly with trees and bushes)
     vegetationItems.forEach(item => item.obj.draw());
 
     // Update and draw tall grass patches
@@ -24324,6 +24878,17 @@ for (let i = owls.length - 1; i >= 0; i--) {
     // Update advanced debug if enabled
     updateAdvancedDebug(deltaTime);
 
+    // Draw scenario fog/atmosphere overlay (after all game elements)
+    if (scenarioAtmosphere && scenarioAtmosphere.fogColor) {
+        ctx.fillStyle = scenarioAtmosphere.fogColor;
+        // Fill entire visible world area with fog
+        const worldVisibleWidth = canvas.width / cameraZoom;
+        const worldVisibleHeight = canvas.height / cameraZoom;
+        const worldLeft = -cameraOffsetX / cameraZoom;
+        const worldTop = -cameraOffsetY / cameraZoom;
+        ctx.fillRect(worldLeft - worldVisibleWidth, worldTop - worldVisibleHeight, worldVisibleWidth * 3, worldVisibleHeight * 3);
+    }
+
     // Restore canvas state after camera transformations
     ctx.restore();
 
@@ -24717,14 +25282,119 @@ function drawFullScene() {
         function startAnimation() {
             if (animationRunning) return;
 
+            // Clear ALL previous game state (for scenario cycling and fresh starts)
+            trees = [];
+            birds = [];
+            eggs = [];
+            babyBirds = [];
+            nests = [];
+            squirrels = [];
+            rats = [];
+            crows = [];
+            owls = [];
+            foodItems = [];
+            worms = [];
+            butterflies = [];
+            birdhouses = [];
+            puddles = [];
+            ponds = [];
+            frogs = [];
+            koi = [];
+            flowers = [];
+            stones = [];
+            bushes = [];
+            twigs = [];
+            birdPoops = [];
+            lightningStrikes = [];
+            specialEffects = [];
+            ants = [];
+            birdTrails = [];
+            mushroomClusters = [];
+            foodCaches = [];
+            fireflies = [];
+            tallGrassPatches = [];
+            beamedUpEntities = [];
+            dangerZones = [];
+            sharedFoodKnowledge = [];
+            activeChirps = [];
+
+            // Clear wind chimes and related timeouts when changing scenarios
+            windChimes = [];
+            if (windChimeTimeout) {
+                clearTimeout(windChimeTimeout);
+                windChimeTimeout = null;
+            }
+            windChimeNoteTimeouts.forEach(timeout => clearTimeout(timeout));
+            windChimeNoteTimeouts = [];
+
+            // Clear scenario-specific elements
+            scenarioAtmosphere = null;
+            scenarioStructures = [];
+
+            // Reset scenario-specific objects and flags
+            antHill = null;
+            scarecrow = null;
+            scarecrowCreated = false;
+            magicMushroom = null;
+            magicMushroomAppeared = false;
+            gameboy = null;
+            gameboyOwlDelivered = false;
+            ufo = null;
+            meteorShower = null;
+            eclipse = null;
+            migrationWave = null;
+            crowVisitInProgress = false;
+            crowVisitTimer = 0;
+            fireflyNightActive = false;
+            rainbowVisible = false;
+            rainbowOpacity = 0;
+            rainbowTimer = 0;
+            isDoubleRainbow = false;
+            playingTheHits = false;
+            tallTreeCount = 0;
+
+            debugLog("Game state cleared for fresh start");
+
             // NEW: 5% chance for special initial garden scenarios (14 unique scenarios!)
-            const specialScenarioRoll = Math.random();
+            // OR forced scenario from debug button
+            let specialScenarioRoll = Math.random();
             let useSpecialScenario = false;
             let scenarioInfo = null;
 
-            if (specialScenarioRoll < 0.05) { // 5% chance (reduced for rarity)
+            // Check if we're forcing a specific scenario from debug button
+            if (typeof window.forceScenarioIndex !== 'undefined' && window.forceScenarioIndex >= 0) {
                 useSpecialScenario = true;
-                const scenarioType = Math.random();
+                specialScenarioRoll = 0; // Force special scenario
+            }
+
+            if (specialScenarioRoll < 0.05 || useSpecialScenario) { // 5% chance (reduced for rarity) OR forced
+                useSpecialScenario = true;
+
+                // Map forceScenarioIndex to scenarioType ranges
+                let scenarioType;
+                if (typeof window.forceScenarioIndex !== 'undefined' && window.forceScenarioIndex >= 0) {
+                    // Force specific scenario based on index
+                    const scenarioRanges = [
+                        0.035,  // 0: Ancient Garden (0-0.071 range, use midpoint)
+                        0.107,  // 1: Baby Forest (0.071-0.143 range)
+                        0.178,  // 2: Twin Giants (0.143-0.214 range)
+                        0.25,   // 3: Sacred Grove (0.214-0.286 range)
+                        0.321,  // 4: Orchard (0.286-0.357 range)
+                        0.393,  // 5: Wild Wilderness (0.357-0.429 range) - ENHANCED
+                        0.464,  // 6: Zen Garden (0.429-0.5 range) - ENHANCED
+                        0.535,  // 7: Enchanted Path (0.5-0.571 range) - ENHANCED
+                        0.607,  // 8: Cluster Chaos (0.571-0.643 range) - ENHANCED
+                        0.678,  // 9: Mountain Peaks (0.643-0.714 range) - ENHANCED
+                        0.75,   // 10: Mirror Grove (0.714-0.786 range) - ENHANCED
+                        0.821,  // 11: Desert Oasis (0.786-0.857 range) - ENHANCED
+                        0.893,  // 12: Storm Survivors (0.857-0.929 range) - ENHANCED
+                        0.964   // 13: Ancient Ruins (0.929-1.0 range) - ENHANCED
+                    ];
+                    scenarioType = scenarioRanges[window.forceScenarioIndex];
+                    delete window.forceScenarioIndex; // Clear the flag
+                } else {
+                    scenarioType = Math.random();
+                }
 
                 if (scenarioType < 0.071) {
                     // "Ancient Garden" - Single massive ancient tree
@@ -24733,6 +25403,14 @@ function drawFullScene() {
                         title: 'Ancient Garden',
                         description: 'A solitary elder tree stands watch over your garden'
                     };
+
+                    // Gameplay: More fruit/food spawns, birds stay longer
+                    scenarioAtmosphere = {
+                        name: 'ancient',
+                        foodMultiplier: 2.0,
+                        birdLoyalty: 1.5
+                    };
+
                     const x = canvas.width / 2;
                     const tree = new Tree(x, 40, 250 + Math.random() * 100, 90, true);
                     tree.age = TREE_LIFESPAN * 0.7;
@@ -24746,6 +25424,15 @@ function drawFullScene() {
                         title: 'Baby Forest',
                         description: 'A nursery of young saplings sprouts across the land'
                     };
+
+                    // Gameplay: Faster tree growth, more baby birds, more butterflies
+                    scenarioAtmosphere = {
+                        name: 'baby',
+                        treeGrowthRate: 1.5,
+                        babyBirdMultiplier: 2.0,
+                        butterflyMultiplier: 1.5
+                    };
+
                     const treeCount = 12 + Math.floor(Math.random() * 4);
                     for (let i = 0; i < treeCount; i++) {
                         const x = 100 + Math.random() * (canvas.width - 200);
@@ -24761,6 +25448,14 @@ function drawFullScene() {
                         title: 'Twin Giants',
                         description: 'Two ancient sentinels stand as eternal guardians'
                     };
+
+                    // Gameplay: More nesting, bird families prefer staying together
+                    scenarioAtmosphere = {
+                        name: 'twins',
+                        nestingBonus: 1.5,
+                        familyBonding: 2.0
+                    };
+
                     const centerX = canvas.width / 2;
                     const spacing = 150;
                     for (let i = 0; i < 2; i++) {
@@ -24778,6 +25473,15 @@ function drawFullScene() {
                         title: 'Sacred Grove',
                         description: 'A mystical circle of trees forms a natural temple'
                     };
+
+                    // Gameplay: Birds more social, special bird songs, peaceful
+                    scenarioAtmosphere = {
+                        name: 'sacred',
+                        socialMultiplier: 1.5,
+                        songChance: 2.0,
+                        peacefulAura: true
+                    };
+
                     const treeCount = 6 + Math.floor(Math.random() * 3);
                     const centerX = canvas.width / 2;
                     const radius = Math.min(300, canvas.width * 0.25);
@@ -24797,6 +25501,15 @@ function drawFullScene() {
                         title: 'Orchard',
                         description: 'A cultivated row of trees awaits careful tending'
                     };
+
+                    // Gameplay: Much more fruit/food production, organized
+                    scenarioAtmosphere = {
+                        name: 'orchard',
+                        fruitProduction: 3.0,
+                        foodAbundance: 2.5,
+                        organized: true
+                    };
+
                     const treeCount = 7 + Math.floor(Math.random() * 3);
                     for (let i = 0; i < treeCount; i++) {
                         const x = 100 + (i * (canvas.width - 200) / (treeCount - 1));
@@ -24812,12 +25525,38 @@ function drawFullScene() {
                         title: 'Wild Wilderness',
                         description: 'Untamed nature has already claimed this space'
                     };
+
+                    // Set dense forest atmosphere with day/night
+                    scenarioAtmosphere = {
+                        name: 'wilderness',
+                        dayGradient: ['#7FA87F', '#6B8E6B', '#577457'], // Deep forest green day
+                        nightGradient: ['#2F4F2F', '#1F3F1F', '#0F2F0F'], // Dark forest night
+                        groundColor: '#4A6B3A', // Rich moss green ground
+                        fogColor: 'rgba(75, 105, 60, 0.25)', // Forest mist
+                        particleColor: '#90C090', // Green spores/pollen
+                        // Gameplay: More butterflies, squirrels, natural spawns
+                        spawnMultiplier: 1.5
+                    };
+
                     const treeCount = 15 + Math.floor(Math.random() * 5);
                     for (let i = 0; i < treeCount; i++) {
                         const x = 80 + Math.random() * (canvas.width - 160);
                         const tree = new Tree(x, 12 + Math.random() * 12, 80 + Math.random() * 100, 35 + Math.random() * 25, Math.random() < 0.7);
                         tree.age = Math.random() * (TREE_LIFESPAN * 0.6);
                         trees.push(tree);
+                    }
+
+                    // Add wild forest stumps scattered throughout (weathered brown)
+                    const stumpCount = 8 + Math.floor(Math.random() * 4);
+                    for (let i = 0; i < stumpCount; i++) {
+                        const x = 100 + Math.random() * (canvas.width - 200);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 70, 'stump', 35 + Math.random() * 25, '#7A6A4A'));
+                    }
+
+                    // Add mossy green stones
+                    for (let i = 0; i < 4; i++) {
+                        const x = 120 + Math.random() * (canvas.width - 240);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 90, 'stone', 40 + Math.random() * 20, '#6B7B5B'));
                     }
 
                 } else if (scenarioType < 0.5) {
@@ -24827,6 +25566,19 @@ function drawFullScene() {
                         title: 'Zen Garden',
                         description: 'Harmony through simplicity - three trees in perfect balance'
                     };
+
+                    // Set peaceful zen atmosphere with day/night
+                    scenarioAtmosphere = {
+                        name: 'zen',
+                        dayGradient: ['#E8F4F8', '#C5E1EA', '#A8D5E2'], // Pale blue zen day
+                        nightGradient: ['#7A8CA0', '#5A6C80', '#3A4C60'], // Serene zen night
+                        groundColor: '#D4C4B0', // Sandy beige ground
+                        fogColor: 'rgba(200, 220, 230, 0.15)', // Subtle mist
+                        particleColor: '#FFFFFF', // Floating white petals
+                        // Gameplay: Quieter birds, peaceful atmosphere
+                        quietMultiplier: 0.5
+                    };
+
                     const spacing = canvas.width / 4;
                     for (let i = 0; i < 3; i++) {
                         const x = spacing + (i * spacing);
@@ -24835,6 +25587,19 @@ function drawFullScene() {
                         trees.push(tree);
                     }
 
+                    // Add zen stones (pale gray)
+                    const stoneCount = 5 + Math.floor(Math.random() * 3);
+                    for (let i = 0; i < stoneCount; i++) {
+                        const x = 100 + Math.random() * (canvas.width - 200);
+                        const stone = new PerchableStructure(x, canvas.height - 80, 'stone', 30 + Math.random() * 20, '#C0C0C0');
+                        scenarioStructures.push(stone);
+                    }
+
+                    // Add two lanterns flanking the center (no color override - keep traditional)
+                    const centerX = canvas.width / 2;
+                    scenarioStructures.push(new PerchableStructure(centerX - 150, canvas.height - 100, 'lantern', 40));
+                    scenarioStructures.push(new PerchableStructure(centerX + 150, canvas.height - 100, 'lantern', 40));
+
                 } else if (scenarioType < 0.571) {
                     // "Enchanted Path" - Trees forming a natural avenue
                     scenarioInfo = {
@@ -24842,6 +25607,19 @@ function drawFullScene() {
                         title: 'Enchanted Path',
                         description: 'Trees line both sides of an invisible pathway'
                     };
+
+                    // Set magical mystical atmosphere with day/night
+                    scenarioAtmosphere = {
+                        name: 'enchanted',
+                        dayGradient: ['#D4B5E8', '#B89FD1', '#9C89BA'], // Magical purple day
+                        nightGradient: ['#6B4A88', '#523A68', '#392A48'], // Deep mystical night
+                        groundColor: '#8B7BA8', // Mystical purple-gray ground
+                        fogColor: 'rgba(180, 159, 209, 0.2)', // Ethereal purple mist
+                        particleColor: '#E8D4F8', // Floating magical sparkles
+                        // Gameplay: More fireflies at night, magical atmosphere
+                        fireflyMultiplier: 2.0
+                    };
+
                     const treeCount = 8 + Math.floor(Math.random() * 4);
                     for (let i = 0; i < treeCount; i++) {
                         const side = i % 2;
@@ -24852,6 +25630,18 @@ function drawFullScene() {
                         trees.push(tree);
                     }
 
+                    // Add lanterns lining the path (alternating sides)
+                    for (let i = 0; i < 6; i++) {
+                        const side = i % 2;
+                        const xBase = side === 0 ? canvas.width * 0.3 : canvas.width * 0.7;
+                        const x = xBase + (i % 2 === 0 ? -40 : 40);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 95, 'lantern', 35));
+                    }
+
+                    // Add mystical shrines at path ends
+                    scenarioStructures.push(new PerchableStructure(canvas.width * 0.2, canvas.height - 110, 'shrine', 45));
+                    scenarioStructures.push(new PerchableStructure(canvas.width * 0.8, canvas.height - 110, 'shrine', 45));
+
                 } else if (scenarioType < 0.643) {
                     // "Cluster Chaos" - Three distinct tree clusters
                     scenarioInfo = {
@@ -24859,6 +25649,21 @@ function drawFullScene() {
                         title: 'Cluster Chaos',
                         description: 'Three groves compete for dominance of the garden'
                     };
+
+                    // Set vibrant competitive atmosphere with day/night
+                    scenarioAtmosphere = {
+                        name: 'chaos',
+                        dayGradient: ['#F4E8C1', '#D9C89E', '#BEA87B'], // Golden competitive day
+                        nightGradient: ['#6B5F43', '#5B4F33', '#4B3F23'], // Dusky contested night
+                        groundColor: '#9B8B5F', // Earthy brown ground
+                        fogColor: 'rgba(217, 200, 158, 0.15)', // Light golden haze
+                        particleColor: '#FFE5A0', // Golden leaves floating
+                        // Gameplay: More competitive spawns, faster tree spawning, more action
+                        treeSpawnRate: 1.5,
+                        competitiveMode: true,
+                        activityMultiplier: 1.3
+                    };
+
                     for (let cluster = 0; cluster < 3; cluster++) {
                         const clusterX = (canvas.width / 4) + (cluster * canvas.width / 3);
                         const clusterTrees = 4 + Math.floor(Math.random() * 3);
@@ -24870,6 +25675,18 @@ function drawFullScene() {
                         }
                     }
 
+                    // Add stumps in the contested spaces between clusters
+                    for (let i = 0; i < 6; i++) {
+                        const betweenX = (canvas.width / 6) + (i * canvas.width / 6);
+                        scenarioStructures.push(new PerchableStructure(betweenX, canvas.height - 75, 'stump', 30 + Math.random() * 15));
+                    }
+
+                    // Add stones marking each grove's territory
+                    for (let cluster = 0; cluster < 3; cluster++) {
+                        const clusterX = (canvas.width / 4) + (cluster * canvas.width / 3);
+                        scenarioStructures.push(new PerchableStructure(clusterX, canvas.height - 85, 'stone', 35 + Math.random() * 15));
+                    }
+
                 } else if (scenarioType < 0.714) {
                     // "Mountain Peaks" - Trees progressively taller toward center
                     scenarioInfo = {
@@ -24877,6 +25694,21 @@ function drawFullScene() {
                         title: 'Mountain Peaks',
                         description: 'Trees rise like mountain peaks, tallest at the summit'
                     };
+
+                    // Set alpine mountain atmosphere with day/night
+                    scenarioAtmosphere = {
+                        name: 'mountain',
+                        dayGradient: ['#C8D8E8', '#A8BED8', '#88A4C8'], // Cool mountain day
+                        nightGradient: ['#3A4C60', '#2A3C50', '#1A2C40'], // Cold mountain night
+                        groundColor: '#758AA0', // Rocky gray-blue ground
+                        fogColor: 'rgba(168, 190, 216, 0.18)', // Mountain mist
+                        particleColor: '#FFFFFF', // Snow/mist particles
+                        // Gameplay: Rare mountain birds, colder climate, owls more common
+                        rareBirdChance: 1.5,
+                        owlMultiplier: 2.0,
+                        coldClimate: true
+                    };
+
                     const treeCount = 7 + Math.floor(Math.random() * 4);
                     const centerX = canvas.width / 2;
                     for (let i = 0; i < treeCount; i++) {
@@ -24894,6 +25726,18 @@ function drawFullScene() {
                         if (heightMultiplier > 0.8) tallTreeCount++;
                     }
 
+                    // Add icy gray-blue stones along the ascending path to the peak
+                    for (let i = 0; i < 9; i++) {
+                        const x = 100 + (i * (canvas.width - 200) / 8);
+                        const distFromCenter = Math.abs(x - centerX) / (canvas.width / 2);
+                        const size = 25 + ((1 - distFromCenter) * 30); // Larger stones near peak
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', size, '#95A5B5'));
+                    }
+
+                    // Add massive towering obelisk at the peak - dramatic mountain monument!
+                    const groundY = canvas.height * GROUND_HEIGHT_RATIO;
+                    scenarioStructures.push(new PerchableStructure(centerX, groundY, 'obelisk', 220));
+
                 } else if (scenarioType < 0.786) {
                     // "Mirror Grove" - Perfect left-right symmetry
                     scenarioInfo = {
@@ -24901,6 +25745,21 @@ function drawFullScene() {
                         title: 'Mirror Grove',
                         description: 'Nature creates a perfect reflection across the garden'
                     };
+
+                    // Set crystalline mirror atmosphere with day/night
+                    scenarioAtmosphere = {
+                        name: 'mirror',
+                        dayGradient: ['#E0E8F0', '#D0D8E8', '#C0C8D8'], // Reflective silver day
+                        nightGradient: ['#5A6878', '#4A5868', '#3A4858'], // Mirror dark night
+                        groundColor: '#B0B8C8', // Shimmering silver ground
+                        fogColor: 'rgba(208, 216, 232, 0.12)', // Crystalline shimmer
+                        particleColor: '#F0F8FF', // Sparkling reflections
+                        // Gameplay: Balanced spawns, mirrored behaviors, harmony
+                        symmetryMode: true,
+                        balancedSpawns: true,
+                        harmonyBonus: 1.5
+                    };
+
                     const pairsCount = 3 + Math.floor(Math.random() * 2); // 3-4 pairs
                     const centerX = canvas.width / 2;
                     for (let i = 0; i < pairsCount; i++) {
@@ -24924,6 +25783,16 @@ function drawFullScene() {
                         if (isTall) tallTreeCount++;
                     }
 
+                    // Add perfectly mirrored lanterns
+                    for (let i = 0; i < 4; i++) {
+                        const offset = 120 + (i * 100);
+                        scenarioStructures.push(new PerchableStructure(centerX - offset, canvas.height - 100, 'lantern', 38));
+                        scenarioStructures.push(new PerchableStructure(centerX + offset, canvas.height - 100, 'lantern', 38));
+                    }
+
+                    // Add central shrine on the mirror line
+                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 115, 'shrine', 50));
+
                 } else if (scenarioType < 0.857) {
                     // "Desert Oasis" - Small cluster in center, vast emptiness
                     scenarioInfo = {
@@ -24931,6 +25800,19 @@ function drawFullScene() {
                         title: 'Desert Oasis',
                         description: 'A precious cluster of life in an endless expanse'
                     };
+
+                    // Set hot desert atmosphere with day/night
+                    scenarioAtmosphere = {
+                        name: 'desert',
+                        dayGradient: ['#F5DEB3', '#E8C89A', '#DBB281'], // Warm sandy day
+                        nightGradient: ['#4A3F35', '#3A2F25', '#2A1F15'], // Cool desert night
+                        groundColor: '#D2A679', // Hot sand ground
+                        fogColor: 'rgba(232, 200, 154, 0.25)', // Heat shimmer
+                        particleColor: '#FFE4B5', // Sand particles
+                        // Gameplay: No natural rain in desert
+                        noRain: true
+                    };
+
                     const treeCount = 2 + Math.floor(Math.random() * 2); // 2-3 trees only
                     const centerX = canvas.width / 2;
                     for (let i = 0; i < treeCount; i++) {
@@ -24943,6 +25825,17 @@ function drawFullScene() {
                         tallTreeCount++;
                     }
 
+                    // Add sandy desert stones in a ring around the oasis
+                    for (let i = 0; i < 8; i++) {
+                        const angle = (i / 8) * Math.PI * 2;
+                        const radius = 120 + Math.random() * 40;
+                        const x = centerX + Math.cos(angle) * radius;
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 85, 'stone', 30 + Math.random() * 25, '#C9A876'));
+                    }
+
+                    // Add shrine at the heart of the oasis (no color override - keep traditional)
+                    scenarioStructures.push(new PerchableStructure(centerX, canvas.height - 110, 'shrine', 42));
+
                 } else if (scenarioType < 0.929) {
                     // "Storm Survivors" - Trees all leaning in same direction
                     scenarioInfo = {
@@ -24950,6 +25843,19 @@ function drawFullScene() {
                         title: 'Storm Survivors',
                         description: 'Windswept trees bent by the relentless gale'
                     };
+
+                    // Set stormy windswept atmosphere with day/night
+                    scenarioAtmosphere = {
+                        name: 'storm',
+                        dayGradient: ['#9CA8B8', '#8698A8', '#708898'], // Stormy gray day
+                        nightGradient: ['#3C4858', '#2C3848', '#1C2838'], // Tempest night
+                        groundColor: '#6B7B8B', // Dark stormy ground
+                        fogColor: 'rgba(134, 152, 168, 0.3)', // Heavy storm clouds
+                        particleColor: '#B8C8D8', // Wind-blown debris
+                        // Gameplay: 2x rain frequency, more lightning
+                        stormIntensity: 2.0
+                    };
+
                     const treeCount = 6 + Math.floor(Math.random() * 4);
                     const windDirection = Math.random() < 0.5 ? -1 : 1; // Left or right
                     for (let i = 0; i < treeCount; i++) {
@@ -24961,6 +25867,18 @@ function drawFullScene() {
                         trees.push(tree);
                     }
 
+                    // Add weathered stumps - remnants of fallen trees (dark gray)
+                    for (let i = 0; i < 10; i++) {
+                        const x = 90 + Math.random() * (canvas.width - 180);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 70, 'stump', 25 + Math.random() * 20, '#6A6A6A'));
+                    }
+
+                    // Add scattered dark stones blown by the wind
+                    for (let i = 0; i < 5; i++) {
+                        const x = 100 + Math.random() * (canvas.width - 200);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', 28 + Math.random() * 18, '#5A6A7A'));
+                    }
+
                 } else {
                     // "Ancient Ruins" - 4 tall pillar trees in corners with scattered saplings
                     scenarioInfo = {
@@ -24968,6 +25886,22 @@ function drawFullScene() {
                         title: 'Ancient Ruins',
                         description: 'Pillars of an forgotten temple stand among new growth'
                     };
+
+                    // Set ancient mystical atmosphere with day/night
+                    scenarioAtmosphere = {
+                        name: 'ruins',
+                        dayGradient: ['#C9B8A8', '#A89688', '#8B7A6A'], // Dusty ancient day
+                        nightGradient: ['#4A3F35', '#3A2F25', '#2A1F15'], // Ruins at night
+                        groundColor: '#A1907A', // Weathered stone ground
+                        fogColor: 'rgba(139, 122, 106, 0.2)', // Ancient dust
+                        particleColor: '#D4C4B0', // Floating dust motes
+                        // Gameplay: More crows, rats, scavengers; ancient mysteries
+                        crowMultiplier: 2.5,
+                        ratMultiplier: 2.0,
+                        scavengerBonus: true,
+                        mysteryEvents: 1.5
+                    };
+
                     // Four corner pillars
                     const margin = canvas.width * 0.15;
                     const corners = [
@@ -24990,6 +25924,19 @@ function drawFullScene() {
                         const tree = new Tree(x, 8 + Math.random() * 5, 50 + Math.random() * 40, 25 + Math.random() * 15, Math.random() < 0.4);
                         tree.age = Math.random() * (TREE_LIFESPAN * 0.15);
                         trees.push(tree);
+                    }
+
+                    // Add ancient stone pillars and obelisks - massive towering monuments!
+                    const centerX = canvas.width / 2;
+                    const groundY = canvas.height * GROUND_HEIGHT_RATIO;
+                    scenarioStructures.push(new PerchableStructure(centerX, groundY, 'obelisk', 250));
+                    scenarioStructures.push(new PerchableStructure(centerX - 150, groundY, 'pillar', 180));
+                    scenarioStructures.push(new PerchableStructure(centerX + 150, groundY, 'pillar', 180));
+
+                    // Add scattered weathered sandstone ruins
+                    for (let i = 0; i < 6; i++) {
+                        const x = 100 + Math.random() * (canvas.width - 200);
+                        scenarioStructures.push(new PerchableStructure(x, canvas.height - 80, 'stone', 25 + Math.random() * 15, '#B8A890'));
                     }
                 }
 
@@ -26373,6 +27320,55 @@ triggerFirefliesBtn.addEventListener('click', () => {
     }
     debugLog(`Firefly night triggered manually (${count} fireflies)`);
 });
+
+// Cycle through special scenarios button
+let currentScenarioIndex = -1; // -1 = none/random, 0-13 = specific scenarios
+const scenarioNames = [
+    'Ancient Garden',
+    'Baby Forest',
+    'Twin Giants',
+    'Sacred Grove',
+    'Orchard',
+    'Wild Wilderness', // Enhanced
+    'Zen Garden', // Enhanced
+    'Enchanted Path', // Enhanced
+    'Cluster Chaos', // Enhanced
+    'Mountain Peaks', // Enhanced
+    'Mirror Grove', // Enhanced
+    'Desert Oasis', // Enhanced
+    'Storm Survivors', // Enhanced
+    'Ancient Ruins' // Enhanced
+];
+
+const cycleScenarioBtn = document.getElementById('cycleScenarioBtn');
+if (cycleScenarioBtn) {
+    cycleScenarioBtn.addEventListener('click', () => {
+        // Stop current animation
+        stopAnimation();
+
+        // Cycle to next scenario
+        currentScenarioIndex = (currentScenarioIndex + 1) % scenarioNames.length;
+
+        // Update button text
+        cycleScenarioBtn.textContent = `🎨 Cycle Scenario (Current: ${scenarioNames[currentScenarioIndex]})`;
+
+        // Force the specific scenario by modifying the scenario roll
+        const originalStartAnimation = window.startAnimationOriginal || startAnimation;
+        if (!window.startAnimationOriginal) {
+            window.startAnimationOriginal = startAnimation;
+        }
+
+        // Temporarily override startAnimation to force our scenario
+        window.forceScenarioIndex = currentScenarioIndex;
+
+        // Start with forced scenario
+        setTimeout(() => {
+            startAnimation();
+        }, 100);
+
+        debugLog(`Loading scenario: ${scenarioNames[currentScenarioIndex]}`);
+    });
+}
 
 // REMOVED: Trigger Lightning button - was causing white screen issues
 
